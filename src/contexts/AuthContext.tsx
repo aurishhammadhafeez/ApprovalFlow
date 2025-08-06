@@ -115,10 +115,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data, error } = await SupabaseService.signUp(email, password, name);
       
       if (error) {
+        console.error('Sign up error:', error);
+        
+        // Handle specific database errors
+        if (error.message.includes('Database error')) {
+          return { success: false, error: 'Database error saving new user. Please try again.' };
+        }
+        
+        if (error.message.includes('User already registered')) {
+          return { success: false, error: 'An account with this email already exists. Please sign in instead.' };
+        }
+        
         return { success: false, error: error.message };
       }
       
       if (data.user) {
+        // Try to create the user record in our database
+        try {
+          const { error: userError } = await SupabaseService.createUser({
+            email: data.user.email!,
+            name: name,
+            role: 'admin'
+          });
+          
+          if (userError) {
+            console.error('Error creating user record:', userError);
+            // Don't fail the signup, but log the error
+            toast({
+              title: "Account created with warning",
+              description: "Account created but there was an issue with database setup. Please contact support.",
+              variant: "destructive"
+            });
+          }
+        } catch (dbError) {
+          console.error('Database error during signup:', dbError);
+          // Continue with signup even if database creation fails
+        }
+        
         setUser({
           id: data.user.id,
           email: data.user.email!,
@@ -136,7 +169,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       return { success: false, error: 'Sign up failed' };
     } catch (error) {
-      return { success: false, error: 'An unexpected error occurred' };
+      console.error('Unexpected error during signup:', error);
+      return { success: false, error: 'An unexpected error occurred during sign up' };
     }
   };
 

@@ -127,15 +127,50 @@ export class SupabaseService {
           .eq('id', currentUser.id)
           .select()
           .single()
-        return { data, error }
+        
+        if (error) {
+          console.error('Error updating existing user:', error)
+          return { data: null, error: error.message }
+        }
+        
+        return { data, error: null }
       } else {
-        // Create new user with auth UID as ID
+        // Try to create new user with auth UID as ID
         const { data, error } = await supabase
           .from('users')
           .insert([userRecord])
           .select()
           .single()
-        return { data, error }
+        
+        if (error) {
+          console.error('Error creating new user:', error)
+          
+          // If the trigger failed, try to create manually
+          if (error.message.includes('new row violates row-level security policy')) {
+            console.log('RLS policy blocked user creation, trying manual creation...')
+            
+            // Call the manual creation function
+            const { data: manualData, error: manualError } = await supabase
+              .rpc('create_user_if_not_exists', {
+                user_id: currentUser.id,
+                user_email: userData.email,
+                user_name: userData.name || 'User'
+              })
+            
+            if (manualError) {
+              console.error('Manual user creation also failed:', manualError)
+              return { data: null, error: 'Failed to create user record. Please try again.' }
+            }
+            
+            // If manual creation succeeded, get the user data
+            const { data: finalUser, error: finalError } = await this.getUserById(currentUser.id)
+            return { data: finalUser, error: finalError }
+          }
+          
+          return { data: null, error: error.message }
+        }
+        
+        return { data, error: null }
       }
     } catch (error) {
       console.error('Error in createUser:', error)
