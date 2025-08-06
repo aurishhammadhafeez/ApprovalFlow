@@ -6,15 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Settings, CheckCircle, AlertCircle } from 'lucide-react';
+import { Building2, Users, Settings, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { SupabaseService } from '@/lib/supabase-service';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrganizationSetupProps {
   onComplete: (orgData: any) => void;
+  onCancel: () => void;
 }
 
-const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => {
+const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCancel }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +58,12 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
       const currentUser = await SupabaseService.getCurrentUser();
       
       if (!currentUser) {
-        setError('No authenticated user found');
+        setError('No authenticated user found. Please sign in first.');
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in to continue with organization setup",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -143,7 +149,17 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-2xl relative">
+        {/* Cancel Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+
         <CardHeader className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
@@ -319,13 +335,22 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
             >
               Previous
             </Button>
-            <Button 
-              onClick={handleNext}
-              disabled={!isStepValid() || loading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              {loading ? 'Setting Up...' : (step === 3 ? 'Complete Setup' : 'Next')}
-            </Button>
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline"
+                onClick={onCancel}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleNext}
+                disabled={!isStepValid() || loading}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {loading ? 'Setting Up...' : (step === 3 ? 'Complete Setup' : 'Next')}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

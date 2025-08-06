@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAppContext } from '@/contexts/AppContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import LandingPage from './LandingPage';
@@ -8,7 +9,8 @@ import WorkflowBuilder from './WorkflowBuilder';
 import SignInModal from './SignInModal';
 
 const AppLayout: React.FC = () => {
-  const { user, setUser, organization, setOrganization, workflows, setWorkflows } = useAppContext();
+  const { user, loading, signOut } = useAuth();
+  const { organization, setOrganization, workflows, setWorkflows } = useAppContext();
   const [currentView, setCurrentView] = useState<'landing' | 'setup' | 'dashboard' | 'workflow'>('landing');
   const [showSignIn, setShowSignIn] = useState(false);
 
@@ -17,7 +19,6 @@ const AppLayout: React.FC = () => {
   };
 
   const handleSignIn = (userData: any) => {
-    setUser(userData);
     if (userData.organization === 'Demo Company') {
       // Existing user with organization
       setOrganization({ name: 'Demo Company', industry: 'Technology' });
@@ -30,8 +31,11 @@ const AppLayout: React.FC = () => {
 
   const handleOrganizationComplete = (orgData: any) => {
     setOrganization(orgData);
-    setUser({ ...user, ...orgData });
     setCurrentView('dashboard');
+  };
+
+  const handleCancelSetup = () => {
+    setCurrentView('landing');
   };
 
   const handleCreateWorkflow = () => {
@@ -43,12 +47,24 @@ const AppLayout: React.FC = () => {
     setCurrentView('dashboard');
   };
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut();
     setOrganization(null);
     setWorkflows([]);
     setCurrentView('landing');
   };
+
+  // Show loading while auth is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading ApprovalFlow...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (currentView === 'landing') {
     return (
@@ -68,7 +84,10 @@ const AppLayout: React.FC = () => {
 
   if (currentView === 'setup') {
     return (
-      <OrganizationSetup onComplete={handleOrganizationComplete} />
+      <OrganizationSetup 
+        onComplete={handleOrganizationComplete}
+        onCancel={handleCancelSetup}
+      />
     );
   }
 

@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, Mail, Lock, AlertCircle } from 'lucide-react';
-import { SupabaseService } from '@/lib/supabase-service';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SignInModalProps {
   isOpen: boolean;
@@ -29,7 +28,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { toast } = useToast();
+  const { signIn, signUp } = useAuth();
 
   const handleSignIn = async () => {
     if (!signInData.email || !signInData.password) {
@@ -41,37 +40,23 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
     setError('');
 
     try {
-      const { data, error } = await SupabaseService.signIn(signInData.email, signInData.password);
+      const { success, error } = await signIn(signInData.email, signInData.password);
       
-      if (error) {
-        setError(error.message);
-        toast({
-          title: "Sign in failed",
-          description: error.message,
-          variant: "destructive"
-        });
-      } else if (data.user) {
+      if (!success) {
+        setError(error || 'Sign in failed');
+      } else {
         const userData = {
-          id: data.user.id,
-          name: data.user.user_metadata?.name || 'User',
-          email: data.user.email,
+          id: 'user-id', // This will be set by AuthContext
+          name: 'User',
+          email: signInData.email,
           role: 'Admin'
         };
         
         onSignIn(userData);
         onClose();
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to ApprovalFlow"
-        });
       }
     } catch (err) {
       setError('An unexpected error occurred');
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
     } finally {
       setLoading(false);
     }
@@ -97,18 +82,13 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
     setError('');
 
     try {
-      const { data, error } = await SupabaseService.signUp(signUpData.email, signUpData.password, signUpData.name);
+      const { success, error } = await signUp(signUpData.email, signUpData.password, signUpData.name);
       
-      if (error) {
-        setError(error.message);
-        toast({
-          title: "Sign up failed",
-          description: error.message,
-          variant: "destructive"
-        });
-      } else if (data.user) {
+      if (!success) {
+        setError(error || 'Sign up failed');
+      } else {
         const userData = {
-          id: data.user.id,
+          id: 'user-id', // This will be set by AuthContext
           name: signUpData.name,
           email: signUpData.email,
           role: 'Admin'
@@ -116,18 +96,9 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
         
         onSignIn(userData);
         onClose();
-        toast({
-          title: "Account created!",
-          description: "Welcome to ApprovalFlow"
-        });
       }
     } catch (err) {
       setError('An unexpected error occurred');
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
     } finally {
       setLoading(false);
     }
