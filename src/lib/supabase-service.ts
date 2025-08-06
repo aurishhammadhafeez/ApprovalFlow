@@ -87,14 +87,28 @@ export class SupabaseService {
     return { error }
   }
 
-  // Users
+  // Users - Use auth UID as the user ID
   static async createUser(userData: Omit<User, 'id' | 'created_at'>) {
     try {
-      // First check if user already exists
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { data: null, error: 'No authenticated user' }
+      }
+
+      // Use auth UID as the user ID
+      const userRecord = {
+        id: currentUser.id, // Use auth UID as user ID
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        organization_id: userData.organization_id
+      }
+
+      // Check if user already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
         .select('*')
-        .eq('email', userData.email)
+        .eq('id', currentUser.id)
         .maybeSingle()
 
       if (checkError) {
@@ -110,15 +124,15 @@ export class SupabaseService {
             name: userData.name,
             role: userData.role
           })
-          .eq('id', existingUser.id)
+          .eq('id', currentUser.id)
           .select()
           .single()
         return { data, error }
       } else {
-        // Create new user
+        // Create new user with auth UID as ID
         const { data, error } = await supabase
           .from('users')
-          .insert([userData])
+          .insert([userRecord])
           .select()
           .single()
         return { data, error }
@@ -161,7 +175,8 @@ export class SupabaseService {
       const currentUser = await this.getCurrentUser()
       if (!currentUser) return { data: null, error: 'No authenticated user' }
 
-      const { data: userData, error: userError } = await this.getUserByEmail(currentUser.email!)
+      // Get user record using auth UID
+      const { data: userData, error: userError } = await this.getUserById(currentUser.id)
       if (userError || !userData) return { data: null, error: userError || 'User not found' }
 
       if (userData.organization_id) {
@@ -170,6 +185,50 @@ export class SupabaseService {
       }
 
       return { data: null, error: 'User has no organization' }
+    } catch (error) {
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Check if current user has an organization
+  static async userHasOrganization() {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) return false
+
+      const { data: userData, error } = await this.getUserById(currentUser.id)
+      if (error || !userData) return false
+
+      return !!userData.organization_id
+    } catch (error) {
+      console.error('Error checking user organization:', error)
+      return false
+    }
+  }
+
+  // Get current user with organization data
+  static async getCurrentUserWithOrganization() {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) return { data: null, error: 'No authenticated user' }
+
+      const { data: userData, error: userError } = await this.getUserById(currentUser.id)
+      if (userError || !userData) return { data: null, error: userError || 'User not found' }
+
+      if (userData.organization_id) {
+        const { data: orgData, error: orgError } = await this.getOrganization(userData.organization_id)
+        if (orgError) return { data: null, error: orgError }
+
+        return {
+          data: {
+            user: userData,
+            organization: orgData
+          },
+          error: null
+        }
+      }
+
+      return { data: { user: userData, organization: null }, error: null }
     } catch (error) {
       return { data: null, error: error as any }
     }

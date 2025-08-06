@@ -14,25 +14,31 @@ const AppLayout: React.FC = () => {
   const { organization, setOrganization, workflows, setWorkflows } = useAppContext();
   const [currentView, setCurrentView] = useState<'landing' | 'setup' | 'dashboard' | 'workflow'>('landing');
   const [showSignIn, setShowSignIn] = useState(false);
+  const [checkingUser, setCheckingUser] = useState(false);
 
   // Check if user has an organization when they're authenticated
   useEffect(() => {
     const checkUserOrganization = async () => {
-      if (user && !organization) {
+      if (user && !organization && !checkingUser) {
+        setCheckingUser(true);
         try {
           // Check if user already has an organization
-          const { data: userData } = await SupabaseService.getUsers(user.id);
-          if (userData && userData.length > 0) {
-            // User already has an organization, go to dashboard
-            const { data: orgData } = await SupabaseService.getOrganization(userData[0].organization_id);
-            if (orgData) {
+          const hasOrg = await SupabaseService.userHasOrganization();
+          
+          if (hasOrg) {
+            // User has organization, get the data and go to dashboard
+            const { data, error } = await SupabaseService.getCurrentUserWithOrganization();
+            if (data && data.organization) {
               setOrganization({
-                ...orgData,
-                adminName: userData[0].name,
-                adminEmail: userData[0].email,
-                adminRole: userData[0].role
+                ...data.organization,
+                adminName: data.user.name,
+                adminEmail: data.user.email,
+                adminRole: data.user.role
               });
               setCurrentView('dashboard');
+            } else {
+              // Error getting organization, go to setup
+              setCurrentView('setup');
             }
           } else {
             // New user, go to organization setup
@@ -42,6 +48,8 @@ const AppLayout: React.FC = () => {
           console.error('Error checking user organization:', error);
           // If error, assume new user and go to setup
           setCurrentView('setup');
+        } finally {
+          setCheckingUser(false);
         }
       }
     };
@@ -49,7 +57,7 @@ const AppLayout: React.FC = () => {
     if (!loading) {
       checkUserOrganization();
     }
-  }, [user, loading, organization]);
+  }, [user, loading, organization, checkingUser]);
 
   const handleGetStarted = () => {
     if (user) {
@@ -90,13 +98,15 @@ const AppLayout: React.FC = () => {
     setCurrentView('landing');
   };
 
-  // Show loading while auth is initializing
-  if (loading) {
+  // Show loading while auth is initializing or checking user organization
+  if (loading || checkingUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading ApprovalFlow...</p>
+          <p className="text-gray-600">
+            {loading ? 'Loading ApprovalFlow...' : 'Checking your organization...'}
+          </p>
         </div>
       </div>
     );
