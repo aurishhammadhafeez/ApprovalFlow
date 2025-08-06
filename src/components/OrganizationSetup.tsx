@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Settings, CheckCircle } from 'lucide-react';
+import { Building2, Users, Settings, CheckCircle, AlertCircle } from 'lucide-react';
+import { SupabaseService } from '@/lib/supabase-service';
+import { useToast } from '@/hooks/use-toast';
 
 interface OrganizationSetupProps {
   onComplete: (orgData: any) => void;
@@ -14,6 +16,10 @@ interface OrganizationSetupProps {
 
 const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { toast } = useToast();
+  
   const [orgData, setOrgData] = useState({
     name: '',
     industry: '',
@@ -34,9 +40,88 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
     '201-1000 employees', '1000+ employees'
   ];
 
-  const handleNext = () => {
-    if (step < 3) setStep(step + 1);
-    else onComplete(orgData);
+  const handleNext = async () => {
+    if (step < 3) {
+      setStep(step + 1);
+    } else {
+      await handleComplete();
+    }
+  };
+
+  const handleComplete = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      // Get current user
+      const currentUser = await SupabaseService.getCurrentUser();
+      
+      if (!currentUser) {
+        setError('No authenticated user found');
+        return;
+      }
+
+      // Create organization
+      const { data: organization, error: orgError } = await SupabaseService.createOrganization({
+        name: orgData.name,
+        industry: orgData.industry,
+        size: orgData.size,
+        description: orgData.description,
+        admin_id: currentUser.id
+      });
+
+      if (orgError) {
+        setError(orgError.message);
+        toast({
+          title: "Organization creation failed",
+          description: orgError.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Create user record
+      const { error: userError } = await SupabaseService.createUser({
+        email: currentUser.email!,
+        name: orgData.adminName,
+        role: 'admin',
+        organization_id: organization.id
+      });
+
+      if (userError) {
+        setError(userError.message);
+        toast({
+          title: "User creation failed",
+          description: userError.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const completeOrgData = {
+        ...organization,
+        adminName: orgData.adminName,
+        adminEmail: orgData.adminEmail,
+        adminRole: orgData.adminRole
+      };
+
+      onComplete(completeOrgData);
+      
+      toast({
+        title: "Organization created!",
+        description: "Your approval workflows are ready to be configured"
+      });
+
+    } catch (err) {
+      setError('An unexpected error occurred');
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -87,6 +172,13 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {error && (
+            <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="text-sm text-red-600">{error}</span>
+            </div>
+          )}
+
           {step === 1 && (
             <div className="space-y-4">
               <div className="flex items-center space-x-2 mb-4">
@@ -101,12 +193,13 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
                   placeholder="Enter your organization name"
                   value={orgData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
+                  disabled={loading}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="industry">Industry *</Label>
-                <Select onValueChange={(value) => handleInputChange('industry', value)}>
+                <Select onValueChange={(value) => handleInputChange('industry', value)} disabled={loading}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your industry" />
                   </SelectTrigger>
@@ -120,7 +213,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
 
               <div className="space-y-2">
                 <Label htmlFor="size">Company Size *</Label>
-                <Select onValueChange={(value) => handleInputChange('size', value)}>
+                <Select onValueChange={(value) => handleInputChange('size', value)} disabled={loading}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select company size" />
                   </SelectTrigger>
@@ -139,6 +232,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
                   placeholder="Brief description of your organization"
                   value={orgData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -158,6 +252,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
                   placeholder="Enter admin full name"
                   value={orgData.adminName}
                   onChange={(e) => handleInputChange('adminName', e.target.value)}
+                  disabled={loading}
                 />
               </div>
 
@@ -169,6 +264,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
                   placeholder="admin@company.com"
                   value={orgData.adminEmail}
                   onChange={(e) => handleInputChange('adminEmail', e.target.value)}
+                  disabled={loading}
                 />
               </div>
 
@@ -179,6 +275,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
                   placeholder="e.g., CEO, Operations Manager"
                   value={orgData.adminRole}
                   onChange={(e) => handleInputChange('adminRole', e.target.value)}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -218,16 +315,16 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete }) => 
             <Button 
               variant="outline" 
               onClick={() => setStep(step - 1)} 
-              disabled={step === 1}
+              disabled={step === 1 || loading}
             >
               Previous
             </Button>
             <Button 
               onClick={handleNext}
-              disabled={!isStepValid()}
+              disabled={!isStepValid() || loading}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
-              {step === 3 ? 'Complete Setup' : 'Next'}
+              {loading ? 'Setting Up...' : (step === 3 ? 'Complete Setup' : 'Next')}
             </Button>
           </div>
         </CardContent>

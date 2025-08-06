@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckCircle, Mail, Lock } from 'lucide-react';
+import { CheckCircle, Mail, Lock, AlertCircle } from 'lucide-react';
+import { SupabaseService } from '@/lib/supabase-service';
+import { useToast } from '@/hooks/use-toast';
 
 interface SignInModalProps {
   isOpen: boolean;
@@ -25,28 +27,110 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
     confirmPassword: ''
   });
 
-  const handleSignIn = () => {
-    // Mock authentication
-    const userData = {
-      name: 'John Doe',
-      email: signInData.email,
-      role: 'Admin',
-      organization: 'Demo Company'
-    };
-    onSignIn(userData);
-    onClose();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { toast } = useToast();
+
+  const handleSignIn = async () => {
+    if (!signInData.email || !signInData.password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data, error } = await SupabaseService.signIn(signInData.email, signInData.password);
+      
+      if (error) {
+        setError(error.message);
+        toast({
+          title: "Sign in failed",
+          description: error.message,
+          variant: "destructive"
+        });
+      } else if (data.user) {
+        const userData = {
+          id: data.user.id,
+          name: data.user.user_metadata?.name || 'User',
+          email: data.user.email,
+          role: 'Admin'
+        };
+        
+        onSignIn(userData);
+        onClose();
+        toast({
+          title: "Welcome back!",
+          description: "Successfully signed in to ApprovalFlow"
+        });
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSignUp = () => {
-    // Mock registration
-    const userData = {
-      name: signUpData.name,
-      email: signUpData.email,
-      role: 'Admin',
-      organization: 'New Company'
-    };
-    onSignIn(userData);
-    onClose();
+  const handleSignUp = async () => {
+    if (!signUpData.name || !signUpData.email || !signUpData.password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (signUpData.password !== signUpData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (signUpData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data, error } = await SupabaseService.signUp(signUpData.email, signUpData.password, signUpData.name);
+      
+      if (error) {
+        setError(error.message);
+        toast({
+          title: "Sign up failed",
+          description: error.message,
+          variant: "destructive"
+        });
+      } else if (data.user) {
+        const userData = {
+          id: data.user.id,
+          name: signUpData.name,
+          email: signUpData.email,
+          role: 'Admin'
+        };
+        
+        onSignIn(userData);
+        onClose();
+        toast({
+          title: "Account created!",
+          description: "Welcome to ApprovalFlow"
+        });
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,6 +158,13 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
           </TabsList>
 
           <TabsContent value="signin" className="space-y-4 mt-6">
+            {error && (
+              <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-sm text-red-600">{error}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="signin-email">Email</Label>
               <div className="relative">
@@ -85,6 +176,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                   className="pl-10"
                   value={signInData.email}
                   onChange={(e) => setSignInData(prev => ({ ...prev, email: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -100,6 +192,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                   className="pl-10"
                   value={signInData.password}
                   onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -107,8 +200,9 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
             <Button 
               onClick={handleSignIn} 
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              disabled={loading}
             >
-              Sign In
+              {loading ? 'Signing In...' : 'Sign In'}
             </Button>
 
             <div className="text-center">
@@ -119,6 +213,13 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
           </TabsContent>
 
           <TabsContent value="signup" className="space-y-4 mt-6">
+            {error && (
+              <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-sm text-red-600">{error}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="signup-name">Full Name</Label>
               <Input
@@ -126,6 +227,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                 placeholder="Enter your full name"
                 value={signUpData.name}
                 onChange={(e) => setSignUpData(prev => ({ ...prev, name: e.target.value }))}
+                disabled={loading}
               />
             </div>
 
@@ -140,6 +242,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                   className="pl-10"
                   value={signUpData.email}
                   onChange={(e) => setSignUpData(prev => ({ ...prev, email: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -155,6 +258,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                   className="pl-10"
                   value={signUpData.password}
                   onChange={(e) => setSignUpData(prev => ({ ...prev, password: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -170,6 +274,7 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
                   className="pl-10"
                   value={signUpData.confirmPassword}
                   onChange={(e) => setSignUpData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -177,8 +282,9 @@ const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSignIn }) 
             <Button 
               onClick={handleSignUp}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              disabled={loading}
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
             </Button>
 
             <p className="text-xs text-gray-600 text-center">
