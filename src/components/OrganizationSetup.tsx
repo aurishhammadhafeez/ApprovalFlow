@@ -12,7 +12,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrganizationSetupProps {
-  onComplete: (orgData: any) => void;
+  onComplete: (orgData: { 
+    id: string; 
+    name: string; 
+    industry?: string; 
+    size?: string; 
+    adminName?: string; 
+    adminEmail?: string; 
+    adminRole?: string 
+  }) => void;
   onCancel: () => void;
 }
 
@@ -67,8 +75,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         return;
       }
 
-      // Create organization
-      const { data: organization, error: orgError } = await SupabaseService.createOrganization({
+      console.log('Creating organization with data:', {
         name: orgData.name,
         industry: orgData.industry,
         size: orgData.size,
@@ -76,7 +83,16 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         admin_id: user.id
       });
 
+      // Create organization
+      const { data: organization, error: orgError } = await SupabaseService.createOrganization({
+        name: orgData.name,
+        industry: orgData.industry,
+        size: orgData.size,
+        admin_id: user.id
+      });
+
       if (orgError) {
+        console.error('Organization creation error:', orgError);
         setError(orgError.message);
         toast({
           title: "Organization creation failed",
@@ -85,6 +101,8 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         });
         return;
       }
+
+      console.log('Organization created successfully:', organization);
 
       // Create user record in our users table
       const { error: userError } = await SupabaseService.createUser({
@@ -95,6 +113,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
       });
 
       if (userError) {
+        console.error('User creation error:', userError);
         setError(userError.message);
         toast({
           title: "User creation failed",
@@ -104,6 +123,8 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         return;
       }
 
+      console.log('User record updated successfully');
+
       const completeOrgData = {
         ...organization,
         adminName: orgData.adminName,
@@ -111,6 +132,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         adminRole: orgData.adminRole
       };
 
+      // Only call onComplete if everything succeeded
       onComplete(completeOrgData);
       
       toast({
@@ -119,6 +141,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
       });
 
     } catch (err) {
+      console.error('Unexpected error in organization setup:', err);
       setError('An unexpected error occurred');
       toast({
         title: "Error",
@@ -335,13 +358,23 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
                 <h3 className="text-lg font-semibold">Ready to Launch!</h3>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <h4 className="font-semibold text-green-800">Organization Setup Complete</h4>
-                <p className="text-green-600 text-sm mt-1">
-                  Your approval workflows are ready to be configured
-                </p>
-              </div>
+              {error ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                  <h4 className="font-semibold text-red-800">Setup Error</h4>
+                  <p className="text-red-600 text-sm mt-1">
+                    {error}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                  <h4 className="font-semibold text-green-800">Organization Setup Complete</h4>
+                  <p className="text-green-600 text-sm mt-1">
+                    Your approval workflows are ready to be configured
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4 text-left">
                 <div className="bg-blue-50 p-3 rounded-lg">
