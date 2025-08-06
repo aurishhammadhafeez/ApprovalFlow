@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Building2, Users, Settings, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { SupabaseService } from '@/lib/supabase-service';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrganizationSetupProps {
@@ -19,6 +20,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const [orgData, setOrgData] = useState({
@@ -54,10 +56,8 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
     setError('');
 
     try {
-      // Get current user
-      const currentUser = await SupabaseService.getCurrentUser();
-      
-      if (!currentUser) {
+      // Get current user from AuthContext
+      if (!user) {
         setError('No authenticated user found. Please sign in first.');
         toast({
           title: "Authentication Error",
@@ -73,7 +73,7 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         industry: orgData.industry,
         size: orgData.size,
         description: orgData.description,
-        admin_id: currentUser.id
+        admin_id: user.id
       });
 
       if (orgError) {
@@ -86,9 +86,9 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         return;
       }
 
-      // Create user record
+      // Create user record in our users table
       const { error: userError } = await SupabaseService.createUser({
-        email: currentUser.email!,
+        email: user.email!,
         name: orgData.adminName,
         role: 'admin',
         organization_id: organization.id
@@ -146,6 +146,37 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         return false;
     }
   };
+
+  // If no user is authenticated, show error
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ApprovalFlow
+              </span>
+            </div>
+            <CardTitle className="text-xl">Authentication Required</CardTitle>
+            <CardDescription>Please sign in to continue with organization setup</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
+              <p className="text-red-600">You must be signed in to set up your organization</p>
+            </div>
+            <Button onClick={onCancel} className="w-full">
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">

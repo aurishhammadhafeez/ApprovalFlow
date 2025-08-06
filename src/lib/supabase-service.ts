@@ -89,12 +89,35 @@ export class SupabaseService {
 
   // Users
   static async createUser(userData: Omit<User, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
+    // First check if user already exists
+    const { data: existingUser } = await supabase
       .from('users')
-      .insert([userData])
-      .select()
+      .select('*')
+      .eq('email', userData.email)
       .single()
-    return { data, error }
+
+    if (existingUser) {
+      // Update existing user with organization_id
+      const { data, error } = await supabase
+        .from('users')
+        .update({ 
+          organization_id: userData.organization_id,
+          name: userData.name,
+          role: userData.role
+        })
+        .eq('id', existingUser.id)
+        .select()
+        .single()
+      return { data, error }
+    } else {
+      // Create new user
+      const { data, error } = await supabase
+        .from('users')
+        .insert([userData])
+        .select()
+        .single()
+      return { data, error }
+    }
   }
 
   static async getUsers(organizationId: string) {
@@ -102,6 +125,24 @@ export class SupabaseService {
       .from('users')
       .select('*')
       .eq('organization_id', organizationId)
+    return { data, error }
+  }
+
+  static async getUserByEmail(email: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
+    return { data, error }
+  }
+
+  static async getUserById(id: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single()
     return { data, error }
   }
 } 

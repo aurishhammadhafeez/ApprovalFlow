@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppContext } from '@/contexts/AppContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -7,6 +7,7 @@ import OrganizationSetup from './OrganizationSetup';
 import Dashboard from './Dashboard';
 import WorkflowBuilder from './WorkflowBuilder';
 import SignInModal from './SignInModal';
+import { SupabaseService } from '@/lib/supabase-service';
 
 const AppLayout: React.FC = () => {
   const { user, loading, signOut } = useAuth();
@@ -14,19 +15,54 @@ const AppLayout: React.FC = () => {
   const [currentView, setCurrentView] = useState<'landing' | 'setup' | 'dashboard' | 'workflow'>('landing');
   const [showSignIn, setShowSignIn] = useState(false);
 
+  // Check if user has an organization when they're authenticated
+  useEffect(() => {
+    const checkUserOrganization = async () => {
+      if (user && !organization) {
+        try {
+          // Check if user already has an organization
+          const { data: userData } = await SupabaseService.getUsers(user.id);
+          if (userData && userData.length > 0) {
+            // User already has an organization, go to dashboard
+            const { data: orgData } = await SupabaseService.getOrganization(userData[0].organization_id);
+            if (orgData) {
+              setOrganization({
+                ...orgData,
+                adminName: userData[0].name,
+                adminEmail: userData[0].email,
+                adminRole: userData[0].role
+              });
+              setCurrentView('dashboard');
+            }
+          } else {
+            // New user, go to organization setup
+            setCurrentView('setup');
+          }
+        } catch (error) {
+          console.error('Error checking user organization:', error);
+          // If error, assume new user and go to setup
+          setCurrentView('setup');
+        }
+      }
+    };
+
+    if (!loading) {
+      checkUserOrganization();
+    }
+  }, [user, loading, organization]);
+
   const handleGetStarted = () => {
-    setCurrentView('setup');
+    if (user) {
+      setCurrentView('setup');
+    } else {
+      setShowSignIn(true);
+    }
   };
 
   const handleSignIn = (userData: any) => {
-    if (userData.organization === 'Demo Company') {
-      // Existing user with organization
-      setOrganization({ name: 'Demo Company', industry: 'Technology' });
-      setCurrentView('dashboard');
-    } else {
-      // New user needs setup
-      setCurrentView('setup');
-    }
+    // The AuthContext will handle the actual authentication
+    // This just closes the modal and lets the useEffect handle the flow
+    setShowSignIn(false);
   };
 
   const handleOrganizationComplete = (orgData: any) => {
