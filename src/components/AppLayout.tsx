@@ -15,19 +15,31 @@ const AppLayout: React.FC = () => {
   const [currentView, setCurrentView] = useState<'landing' | 'setup' | 'dashboard' | 'workflow'>('landing');
   const [showSignIn, setShowSignIn] = useState(false);
   const [checkingUser, setCheckingUser] = useState(false);
+  const [hasCheckedUser, setHasCheckedUser] = useState(false);
 
   // Check if user has an organization when they're authenticated
   useEffect(() => {
     const checkUserOrganization = async () => {
-      if (user && !organization && !checkingUser) {
+      console.log('AppLayout: Checking user organization', { 
+        user: !!user, 
+        hasCheckedUser, 
+        checkingUser,
+        currentView 
+      });
+      
+      if (user && !hasCheckedUser && !checkingUser) {
+        console.log('AppLayout: Starting organization check for user:', user.id);
         setCheckingUser(true);
         try {
           // Check if user already has an organization
           const hasOrg = await SupabaseService.userHasOrganization();
+          console.log('AppLayout: User has organization:', hasOrg);
           
           if (hasOrg) {
             // User has organization, get the data and go to dashboard
             const { data, error } = await SupabaseService.getCurrentUserWithOrganization();
+            console.log('AppLayout: Got user with organization data:', { data, error });
+            
             if (data && data.organization) {
               setOrganization({
                 ...data.organization,
@@ -36,20 +48,25 @@ const AppLayout: React.FC = () => {
                 adminRole: data.user.role
               });
               setCurrentView('dashboard');
+              console.log('AppLayout: Redirecting to dashboard');
             } else {
               // Error getting organization, go to setup
               setCurrentView('setup');
+              console.log('AppLayout: Error getting organization, going to setup');
             }
           } else {
             // New user, go to organization setup
             setCurrentView('setup');
+            console.log('AppLayout: New user, going to setup');
           }
         } catch (error) {
-          console.error('Error checking user organization:', error);
+          console.error('AppLayout: Error checking user organization:', error);
           // If error, assume new user and go to setup
           setCurrentView('setup');
         } finally {
           setCheckingUser(false);
+          setHasCheckedUser(true);
+          console.log('AppLayout: Finished organization check');
         }
       }
     };
@@ -57,7 +74,15 @@ const AppLayout: React.FC = () => {
     if (!loading) {
       checkUserOrganization();
     }
-  }, [user, loading, organization, checkingUser]);
+  }, [user, loading, hasCheckedUser, checkingUser]);
+
+  // Reset hasCheckedUser when user changes
+  useEffect(() => {
+    if (user) {
+      console.log('AppLayout: User changed, resetting hasCheckedUser');
+      setHasCheckedUser(false);
+    }
+  }, [user]);
 
   const handleGetStarted = () => {
     if (user) {
@@ -67,13 +92,21 @@ const AppLayout: React.FC = () => {
     }
   };
 
-  const handleSignIn = (userData: any) => {
+  const handleSignIn = (userData: { id: string; email: string; name?: string }) => {
     // The AuthContext will handle the actual authentication
     // This just closes the modal and lets the useEffect handle the flow
     setShowSignIn(false);
   };
 
-  const handleOrganizationComplete = (orgData: any) => {
+  const handleOrganizationComplete = (orgData: { 
+    id: string; 
+    name: string; 
+    industry?: string; 
+    size?: string; 
+    adminName?: string; 
+    adminEmail?: string; 
+    adminRole?: string 
+  }) => {
     setOrganization(orgData);
     setCurrentView('dashboard');
   };
@@ -86,7 +119,13 @@ const AppLayout: React.FC = () => {
     setCurrentView('workflow');
   };
 
-  const handleWorkflowSave = (workflow: any) => {
+  const handleWorkflowSave = (workflow: { 
+    id: number; 
+    name: string; 
+    description?: string; 
+    department?: string; 
+    type?: string 
+  }) => {
     setWorkflows([...workflows, { ...workflow, id: Date.now() }]);
     setCurrentView('dashboard');
   };
@@ -96,6 +135,7 @@ const AppLayout: React.FC = () => {
     setOrganization(null);
     setWorkflows([]);
     setCurrentView('landing');
+    setHasCheckedUser(false);
   };
 
   // Show loading while auth is initializing or checking user organization
