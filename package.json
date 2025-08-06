@@ -13,7 +13,12 @@
     "db:push-seed": "supabase db push --include-seed",
     "db:reset": "supabase db reset",
     "db:status": "supabase db status",
-    "db:diff": "supabase db diff"
+    "db:diff": "supabase db diff",
+    "db:setup": "./scripts/setup-env.sh",
+    "db:push-auto": "./scripts/db-operations.sh push",
+    "db:push-seed-auto": "./scripts/db-operations.sh push-seed",
+    "db:status-auto": "./scripts/db-operations.sh status",
+    "db:reset-auto": "./scripts/db-operations.sh reset"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
