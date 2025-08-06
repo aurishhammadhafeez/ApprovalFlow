@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Settings, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Building2, Users, Settings, CheckCircle, AlertCircle, X, Mail, RefreshCw } from 'lucide-react';
 import { SupabaseService } from '@/lib/supabase-service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 
 interface OrganizationSetupProps {
   onComplete: (orgData: { 
@@ -28,6 +29,8 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -40,6 +43,79 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
     adminEmail: '',
     adminRole: ''
   });
+
+  // Check email confirmation status
+  useEffect(() => {
+    const checkEmailConfirmation = async () => {
+      if (!user) return;
+      
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          setEmailConfirmed(currentUser.email_confirmed_at !== null);
+        }
+      } catch (error) {
+        console.error('Error checking email confirmation:', error);
+      } finally {
+        setCheckingEmail(false);
+      }
+    };
+
+    checkEmailConfirmation();
+  }, [user]);
+
+  const handleResendConfirmation = async () => {
+    if (!user?.email) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user.email
+      });
+      
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Confirmation email sent",
+          description: "Please check your email and click the confirmation link"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to resend confirmation email",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshEmailStatus = async () => {
+    setCheckingEmail(true);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        setEmailConfirmed(currentUser.email_confirmed_at !== null);
+        if (currentUser.email_confirmed_at !== null) {
+          toast({
+            title: "Email confirmed!",
+            description: "You can now proceed with organization setup"
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing email status:', error);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
 
   const industries = [
     'Technology', 'Healthcare', 'Finance', 'Manufacturing', 'Retail', 'Education', 
@@ -75,11 +151,22 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
         return;
       }
 
+      // Check email confirmation again before proceeding
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.email_confirmed_at) {
+        setError('Please confirm your email address before creating an organization.');
+        toast({
+          title: "Email confirmation required",
+          description: "Please confirm your email address to continue",
+          variant: "destructive"
+        });
+        return;
+      }
+
       console.log('Creating organization with data:', {
         name: orgData.name,
         industry: orgData.industry,
         size: orgData.size,
-        description: orgData.description,
         admin_id: user.id
       });
 
@@ -197,6 +284,86 @@ const OrganizationSetup: React.FC<OrganizationSetupProps> = ({ onComplete, onCan
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Show email confirmation required screen
+  if (!checkingEmail && !emailConfirmed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <Mail className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ApprovalFlow
+              </span>
+            </div>
+            <CardTitle className="text-xl">Email Confirmation Required</CardTitle>
+            <CardDescription>Please confirm your email address to continue</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <Mail className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+              <h4 className="font-semibold text-yellow-800">Check Your Email</h4>
+              <p className="text-yellow-600 text-sm mt-1">
+                We sent a confirmation email to <strong>{user.email}</strong>
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Button 
+                onClick={handleRefreshEmailStatus}
+                disabled={checkingEmail}
+                className="w-full"
+              >
+                {checkingEmail ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    I've Confirmed My Email
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? 'Sending...' : 'Resend Confirmation Email'}
+              </Button>
+              
+              <Button 
+                variant="ghost"
+                onClick={onCancel}
+                className="w-full"
+              >
+                Go Back
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading while checking email status
+  if (checkingEmail) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking email confirmation status...</p>
+        </div>
       </div>
     );
   }

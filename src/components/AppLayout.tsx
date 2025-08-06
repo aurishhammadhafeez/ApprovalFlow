@@ -8,6 +8,7 @@ import Dashboard from './Dashboard';
 import WorkflowBuilder from './WorkflowBuilder';
 import SignInModal from './SignInModal';
 import { SupabaseService } from '@/lib/supabase-service';
+import { supabase } from '@/lib/supabase';
 
 const AppLayout: React.FC = () => {
   const { user, loading, signOut } = useAuth();
@@ -31,6 +32,16 @@ const AppLayout: React.FC = () => {
         console.log('AppLayout: Starting organization check for user:', user.id);
         setCheckingUser(true);
         try {
+          // First check if email is confirmed
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser && !currentUser.email_confirmed_at) {
+            console.log('AppLayout: Email not confirmed, going to setup');
+            setCurrentView('setup');
+            setCheckingUser(false);
+            setHasCheckedUser(true);
+            return;
+          }
+
           // Check if user already has an organization
           const hasOrg = await SupabaseService.userHasOrganization();
           console.log('AppLayout: User has organization:', hasOrg);
