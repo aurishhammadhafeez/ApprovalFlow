@@ -89,34 +89,43 @@ export class SupabaseService {
 
   // Users
   static async createUser(userData: Omit<User, 'id' | 'created_at'>) {
-    // First check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', userData.email)
-      .single()
+    try {
+      // First check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', userData.email)
+        .maybeSingle()
 
-    if (existingUser) {
-      // Update existing user with organization_id
-      const { data, error } = await supabase
-        .from('users')
-        .update({ 
-          organization_id: userData.organization_id,
-          name: userData.name,
-          role: userData.role
-        })
-        .eq('id', existingUser.id)
-        .select()
-        .single()
-      return { data, error }
-    } else {
-      // Create new user
-      const { data, error } = await supabase
-        .from('users')
-        .insert([userData])
-        .select()
-        .single()
-      return { data, error }
+      if (checkError) {
+        console.error('Error checking existing user:', checkError)
+      }
+
+      if (existingUser) {
+        // Update existing user with organization_id
+        const { data, error } = await supabase
+          .from('users')
+          .update({ 
+            organization_id: userData.organization_id,
+            name: userData.name,
+            role: userData.role
+          })
+          .eq('id', existingUser.id)
+          .select()
+          .single()
+        return { data, error }
+      } else {
+        // Create new user
+        const { data, error } = await supabase
+          .from('users')
+          .insert([userData])
+          .select()
+          .single()
+        return { data, error }
+      }
+    } catch (error) {
+      console.error('Error in createUser:', error)
+      return { data: null, error: error as any }
     }
   }
 
@@ -133,7 +142,7 @@ export class SupabaseService {
       .from('users')
       .select('*')
       .eq('email', email)
-      .single()
+      .maybeSingle()
     return { data, error }
   }
 
@@ -142,7 +151,27 @@ export class SupabaseService {
       .from('users')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     return { data, error }
+  }
+
+  // Helper method to get current user's organization
+  static async getCurrentUserOrganization() {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) return { data: null, error: 'No authenticated user' }
+
+      const { data: userData, error: userError } = await this.getUserByEmail(currentUser.email!)
+      if (userError || !userData) return { data: null, error: userError || 'User not found' }
+
+      if (userData.organization_id) {
+        const { data: orgData, error: orgError } = await this.getOrganization(userData.organization_id)
+        return { data: orgData, error: orgError }
+      }
+
+      return { data: null, error: 'User has no organization' }
+    } catch (error) {
+      return { data: null, error: error as any }
+    }
   }
 } 
