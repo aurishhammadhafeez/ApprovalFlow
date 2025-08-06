@@ -1,0 +1,107 @@
+import { supabase, User, Organization, Workflow } from './supabase'
+
+export class SupabaseService {
+  // Authentication
+  static async signUp(email: string, password: string, name: string) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name }
+      }
+    })
+    return { data, error }
+  }
+
+  static async signIn(email: string, password: string) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    return { data, error }
+  }
+
+  static async signOut() {
+    const { error } = await supabase.auth.signOut()
+    return { error }
+  }
+
+  static async getCurrentUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  }
+
+  // Organizations
+  static async createOrganization(orgData: Omit<Organization, 'id' | 'created_at'>) {
+    const { data, error } = await supabase
+      .from('organizations')
+      .insert([orgData])
+      .select()
+      .single()
+    return { data, error }
+  }
+
+  static async getOrganization(id: string) {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', id)
+      .single()
+    return { data, error }
+  }
+
+  // Workflows
+  static async createWorkflow(workflowData: Omit<Workflow, 'id' | 'created_at'>) {
+    const { data, error } = await supabase
+      .from('workflows')
+      .insert([workflowData])
+      .select()
+      .single()
+    return { data, error }
+  }
+
+  static async getWorkflows(organizationId: string) {
+    const { data, error } = await supabase
+      .from('workflows')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false })
+    return { data, error }
+  }
+
+  static async updateWorkflow(id: string, updates: Partial<Workflow>) {
+    const { data, error } = await supabase
+      .from('workflows')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+    return { data, error }
+  }
+
+  static async deleteWorkflow(id: string) {
+    const { error } = await supabase
+      .from('workflows')
+      .delete()
+      .eq('id', id)
+    return { error }
+  }
+
+  // Users
+  static async createUser(userData: Omit<User, 'id' | 'created_at'>) {
+    const { data, error } = await supabase
+      .from('users')
+      .insert([userData])
+      .select()
+      .single()
+    return { data, error }
+  }
+
+  static async getUsers(organizationId: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('organization_id', organizationId)
+    return { data, error }
+  }
+} 
