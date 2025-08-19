@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   BarChart3, Clock, CheckCircle, AlertCircle, Users, FileText, 
-  Plus, Filter, Search, Bell, Settings, LogOut 
+  Plus, Filter, Search, Bell, Settings, LogOut, Wand2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
@@ -143,6 +143,31 @@ const Dashboard: React.FC<DashboardProps> = ({ orgData, onCreateWorkflow, onLogo
                   </Card>
                 ))}
               </div>
+
+              {/* AI Document Generator */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Wand2 className="h-5 w-5 mr-2 text-purple-600" />
+                    AI Document Generator
+                  </CardTitle>
+                  <CardDescription>Generate workflow documents using AI</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-3">
+                      Describe what you need: "Create a job contract for a UI designer at $2,000/month"
+                    </p>
+                    <div className="flex space-x-2">
+                      <Input placeholder="Describe your document needs..." className="flex-1" />
+                      <Button className="bg-gradient-to-r from-purple-600 to-blue-600">
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        Generate
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Recent Approvals */}
               <Card>
