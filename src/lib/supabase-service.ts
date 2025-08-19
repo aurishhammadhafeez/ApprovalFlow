@@ -461,4 +461,293 @@ export class SupabaseService {
       return { error: error as any }
     }
   }
+
+  // Create invitation (only admins can do this)
+  static async createInvitation(invitationData: { email: string; name?: string; role: string }, organizationId: string) {
+    try {
+      // Check if current user is admin
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { data: null, error: 'Authentication required' }
+      }
+
+      // Check if email is already in use
+      const { isInUse, organizationId: existingOrgId } = await this.isEmailInUse(invitationData.email)
+      if (isInUse) {
+        if (existingOrgId === organizationId) {
+          return { data: null, error: 'User is already in this organization' }
+        } else {
+          return { data: null, error: 'Email is already in use by another organization' }
+        }
+      }
+
+      // Get the role ID for the specified role name
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('name', invitationData.role)
+        .single()
+
+      if (roleError || !roleData) {
+        return { data: null, error: 'Invalid role specified' }
+      }
+
+      // Generate secure token
+      const token = crypto.randomUUID()
+      
+      // Set expiration (7 days from now)
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 7)
+
+      // Create invitation
+      const { data: invitation, error: invitationError } = await supabase
+        .from('invitations')
+        .insert([{
+          email: invitationData.email.trim(),
+          name: invitationData.name?.trim(),
+          role_id: roleData.id,
+          organization_id: organizationId,
+          invited_by: currentUser.id,
+          token: token,
+          expires_at: expiresAt.toISOString()
+        }])
+        .select()
+        .single()
+
+      if (invitationError) {
+        console.error('Error creating invitation:', invitationError)
+        return { data: null, error: invitationError.message }
+      }
+
+      return { data: invitation, error: null }
+    } catch (error) {
+      console.error('Error creating invitation:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Get invitations for an organization
+  static async getInvitations(organizationId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select(`
+          *,
+          roles (
+            name,
+            description
+          ),
+          users!invitations_invited_by_fkey (
+            name,
+            email
+          )
+        `)
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching invitations:', error)
+        return { data: null, error }
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      console.error('Error fetching invitations:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Cancel invitation (only admins can do this)
+  static async cancelInvitation(invitationId: string) {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { error: 'Authentication required' }
+      }
+
+      // Check if current user is admin
+      const { data: userData } = await this.getCurrentUserWithOrganization()
+      if (!userData?.user || userData.user.role !== 'admin') {
+        return { error: 'Insufficient permissions' }
+      }
+
+      const { error } = await supabase
+        .from('invitations')
+        .delete()
+        .eq('id', invitationId)
+
+      if (error) {
+        console.error('Error canceling invitation:', error)
+        return { error: error.message }
+      }
+
+      return { error: null }
+    } catch (error) {
+      console.error('Error canceling invitation:', error)
+      return { error: error as any }
+    }
+  }
+
+  // Accept invitation (public method for invited users)
+  static async acceptInvitation(token: string, userData: { email: string; name: string; password: string }) {
+    try {
+      // Find invitation by token
+      const { data: invitation, error: invitationError } = await supabase
+        .from('invitations')
+        .select(`
+          *,
+          roles (
+            name
+          ),
+          organizations (
+            name
+          )
+        `)
+        .eq('token', token)
+        .eq('status', 'pending')
+        .single()
+
+      if (invitationError || !invitation) {
+        return { data: null, error: 'Invalid or expired invitation' }
+      }
+
+      // Check if invitation has expired
+      if (new Date(invitation.expires_at) < new Date()) {
+        return { data: null, error: 'Invitation has expired' }
+      }
+
+      // Check if email matches invitation
+      if (invitation.email !== userData.email) {
+        return { data: null, error: 'Email does not match invitation' }
+      }
+
+      // Create user account
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: { name: userData.name }
+        }
+      })
+
+      if (signUpError) {
+        return { data: null, error: signUpError.message }
+      }
+
+      if (!signUpData.user) {
+        return { data: null, error: 'Failed to create user account' }
+      }
+
+      // Create user record in our database
+      const { error: userError } = await supabase
+        .from('users')
+        .insert([{
+          id: signUpData.user.id,
+          email: userData.email,
+          name: userData.name,
+          role: invitation.roles.name,
+          organization_id: invitation.organization_id
+        }])
+
+      if (userError) {
+        console.error('Error creating user record:', userError)
+        return { data: null, error: 'Failed to create user record' }
+      }
+
+      // Assign role to user
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert([{
+          user_id: signUpData.user.id,
+          role_id: invitation.role_id,
+          organization_id: invitation.organization_id,
+          assigned_by: invitation.invited_by
+        }])
+
+      if (roleError) {
+        console.error('Error assigning role:', roleError)
+        // If role assignment fails, delete the user to maintain consistency
+        await supabase.auth.admin.deleteUser(signUpData.user.id)
+        return { data: null, error: 'Failed to assign role to user' }
+      }
+
+      // Update invitation status
+      const { error: updateError } = await supabase
+        .from('invitations')
+        .update({
+          status: 'accepted',
+          accepted_at: new Date().toISOString()
+        })
+        .eq('id', invitation.id)
+
+      if (updateError) {
+        console.error('Error updating invitation:', updateError)
+        // Don't fail the acceptance, but log the error
+      }
+
+      return { 
+        data: { 
+          user: signUpData.user, 
+          organization: invitation.organizations,
+          role: invitation.roles.name
+        }, 
+        error: null 
+      }
+    } catch (error) {
+      console.error('Error accepting invitation:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Resend invitation (only admins can do this)
+  static async resendInvitation(invitationId: string) {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { error: 'Authentication required' }
+      }
+
+      // Check if current user is admin
+      const { data: userData } = await this.getCurrentUserWithOrganization()
+      if (!userData?.user || userData.user.role !== 'admin') {
+        return { error: 'Insufficient permissions' }
+      }
+
+      // Get current invitation
+      const { data: invitation, error: fetchError } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('id', invitationId)
+        .single()
+
+      if (fetchError || !invitation) {
+        return { error: 'Invitation not found' }
+      }
+
+      // Generate new token and extend expiration
+      const newToken = crypto.randomUUID()
+      const newExpiresAt = new Date()
+      newExpiresAt.setDate(newExpiresAt.getDate() + 7)
+
+      // Update invitation
+      const { error: updateError } = await supabase
+        .from('invitations')
+        .update({
+          token: newToken,
+          expires_at: newExpiresAt.toISOString(),
+          created_at: new Date().toISOString()
+        })
+        .eq('id', invitationId)
+
+      if (updateError) {
+        console.error('Error updating invitation:', updateError)
+        return { error: updateError.message }
+      }
+
+      return { data: { token: newToken, expires_at: newExpiresAt }, error: null }
+    } catch (error) {
+      console.error('Error resending invitation:', error)
+      return { error: error as any }
+    }
+  }
 } 

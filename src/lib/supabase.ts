@@ -68,4 +68,18 @@ export interface UserRole {
 
 export interface UserWithRoles extends User {
   roles?: Role[]
+}
+
+export interface Invitation {
+  id: string
+  email: string
+  name?: string
+  role_id: string
+  organization_id: string
+  invited_by?: string
+  token: string
+  status: 'pending' | 'accepted' | 'expired'
+  expires_at: string
+  created_at: string
+  accepted_at?: string
 } 

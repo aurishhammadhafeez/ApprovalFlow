@@ -47,6 +47,21 @@ CREATE TABLE user_roles (
   UNIQUE(user_id, role_id, organization_id)
 );
 
+-- Invitations table for user invitations
+CREATE TABLE invitations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email TEXT NOT NULL,
+  name TEXT,
+  role_id UUID REFERENCES roles(id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  token TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'pending', -- pending, accepted, expired
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  accepted_at TIMESTAMP WITH TIME ZONE
+);
+
 -- Insert default roles
 INSERT INTO roles (name, description, permissions) VALUES
   ('admin', 'Full access to all features and user management', '{"all": true}'),
@@ -103,6 +118,10 @@ CREATE INDEX idx_approvals_approver_id ON approvals(approver_id);
 CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
 CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 CREATE INDEX idx_user_roles_organization_id ON user_roles(organization_id);
+CREATE INDEX idx_invitations_email ON invitations(email);
+CREATE INDEX idx_invitations_token ON invitations(token);
+CREATE INDEX idx_invitations_organization_id ON invitations(organization_id);
+CREATE INDEX idx_invitations_status ON invitations(status);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
@@ -112,6 +131,7 @@ ALTER TABLE workflow_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 -- Organizations: Users can only see their own organization
@@ -194,6 +214,46 @@ CREATE POLICY "Admins can delete user roles" ON user_roles
     )
   );
 
+-- Invitations: Users can only see invitations for their organization
+CREATE POLICY "Users can view organization invitations" ON invitations
+  FOR SELECT USING (organization_id = (SELECT organization_id FROM users WHERE id = auth.uid()));
+
+-- Invitations: Only admins can create invitations
+CREATE POLICY "Admins can create invitations" ON invitations
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM user_roles ur
+      JOIN roles r ON ur.role_id = r.id
+      WHERE ur.user_id = auth.uid() 
+      AND ur.organization_id = invitations.organization_id
+      AND r.name = 'admin'
+    )
+  );
+
+-- Invitations: Only admins can update invitations
+CREATE POLICY "Admins can update invitations" ON invitations
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM user_roles ur
+      JOIN roles r ON ur.role_id = r.id
+      WHERE ur.user_id = auth.uid() 
+      AND ur.organization_id = invitations.organization_id
+      AND r.name = 'admin'
+    )
+  );
+
+-- Invitations: Only admins can delete invitations
+CREATE POLICY "Admins can delete invitations" ON invitations
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM user_roles ur
+      JOIN roles r ON ur.role_id = r.id
+      WHERE ur.user_id = auth.uid() 
+      AND ur.organization_id = invitations.organization_id
+      AND r.name = 'admin'
+    )
+  );
+
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -207,4 +267,5 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_workflows_updated_at BEFORE UPDATE ON workflows FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_approvals_updated_at BEFORE UPDATE ON approvals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); 
+CREATE TRIGGER update_approvals_updated_at BEFORE UPDATE ON approvals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_invitations_updated_at BEFORE UPDATE ON invitations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); 
