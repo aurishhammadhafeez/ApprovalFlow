@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   BarChart3, Clock, CheckCircle, AlertCircle, Users, FileText, 
-  Plus, Filter, Search, Bell, Settings, LogOut, Wand2
+  Plus, Filter, Search, Bell, Settings, LogOut, Wand2, Edit, Trash2, Eye
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { SupabaseService } from '@/lib/supabase-service';
+import { toast } from '@/components/ui/sonner';
 
 interface DashboardProps {
   orgData: any;
@@ -15,14 +17,26 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+interface Workflow {
+  id: string;
+  name: string;
+  department: string;
+  type: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ orgData, onCreateWorkflow, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const stats = [
     { title: 'Pending Approvals', value: '12', icon: <Clock className="h-5 w-5" />, color: 'text-orange-600', bg: 'bg-orange-50' },
     { title: 'Completed Today', value: '8', icon: <CheckCircle className="h-5 w-5" />, color: 'text-green-600', bg: 'bg-green-50' },
-    { title: 'Total Workflows', value: '24', icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { title: 'Active Users', value: '15', icon: <Users className="h-5 w-5" />, color: 'text-purple-600', bg: 'bg-purple-50' }
+    { title: 'Total Workflows', value: workflows.length.toString(), icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { title: 'Active Users', value: '15', icon: <Users className="h-5 w-5" />, color: 'bg-purple-600', bg: 'bg-purple-50' }
   ];
 
   const recentApprovals = [
@@ -39,6 +53,43 @@ const Dashboard: React.FC<DashboardProps> = ({ orgData, onCreateWorkflow, onLogo
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const fetchWorkflows = async () => {
+    try {
+      setLoading(true);
+      const { data: userData } = await SupabaseService.getCurrentUserWithOrganization();
+      
+      if (!userData?.organization) {
+        toast.error('Organization not found');
+        return;
+      }
+
+      const { data, error } = await SupabaseService.getWorkflows(userData.organization.id);
+      
+      if (error) {
+        console.error('Error fetching workflows:', error);
+        toast.error('Failed to fetch workflows');
+        return;
+      }
+
+      setWorkflows(data || []);
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkflows();
+  }, []);
+
+  const handleWorkflowCreated = () => {
+    // Refresh workflows after creating a new one
+    fetchWorkflows();
+    onCreateWorkflow();
   };
 
   return (
@@ -213,24 +264,78 @@ const Dashboard: React.FC<DashboardProps> = ({ orgData, onCreateWorkflow, onLogo
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-900">Workflows</h1>
-                <Button onClick={onCreateWorkflow} className="bg-gradient-to-r from-blue-600 to-purple-600">
+                <Button onClick={handleWorkflowCreated} className="bg-gradient-to-r from-blue-600 to-purple-600">
                   <Plus className="mr-2 h-4 w-4" />
                   Create New
                 </Button>
               </div>
               
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-center py-12">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows yet</h3>
-                    <p className="text-gray-600 mb-4">Get started by creating your first approval workflow</p>
-                    <Button onClick={onCreateWorkflow} className="bg-gradient-to-r from-blue-600 to-purple-600">
-                      Create Workflow
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              {loading ? (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading workflows...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : workflows.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows yet</h3>
+                      <p className="text-gray-600 mb-4">Get started by creating your first approval workflow</p>
+                      <Button onClick={handleWorkflowCreated} className="bg-gradient-to-r from-blue-600 to-purple-600">
+                        Create Workflow
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {workflows.map((workflow) => (
+                    <Card key={workflow.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="text-lg font-semibold text-gray-900">{workflow.name}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {workflow.status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{workflow.description}</p>
+                            <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <span className="flex items-center">
+                                <FileText className="h-3 w-3 mr-1" />
+                                {workflow.department} • {workflow.type}
+                              </span>
+                              <span>
+                                Created {new Date(workflow.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700">
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

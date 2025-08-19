@@ -130,14 +130,9 @@ const AppLayout: React.FC = () => {
     setCurrentView('workflow');
   };
 
-  const handleWorkflowSave = (workflow: { 
-    id: number; 
-    name: string; 
-    description?: string; 
-    department?: string; 
-    type?: string 
-  }) => {
-    setWorkflows([...workflows, { ...workflow, id: Date.now() }]);
+  const handleWorkflowSave = (workflow: any) => {
+    // Workflow is now saved to database, just return to dashboard
+    // The Dashboard component will fetch the updated workflows
     setCurrentView('dashboard');
   };
 
