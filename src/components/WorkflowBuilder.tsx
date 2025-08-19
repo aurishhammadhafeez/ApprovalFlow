@@ -17,6 +17,7 @@ interface WorkflowBuilderProps {
 }
 
 const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => {
+  const [activeTab, setActiveTab] = useState('basic');
   const [workflow, setWorkflow] = useState({
     name: '',
     department: '',
@@ -131,7 +132,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
       </header>
 
       <div className="p-6 max-w-6xl mx-auto">
-        <Tabs defaultValue="basic" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="steps">Approval Steps</TabsTrigger>
@@ -197,7 +198,16 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
               </CardContent>
             </Card>
 
-
+            {/* Next Step Button */}
+            <div className="flex justify-end">
+              <Button 
+                onClick={() => setActiveTab('steps')}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                Next Step
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
           </TabsContent>
 
           <TabsContent value="steps" className="space-y-6">
@@ -261,9 +271,25 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
                 ))}
               </CardContent>
             </Card>
+
+            {/* Navigation and Save Buttons */}
+            <div className="flex justify-between items-center">
+              <Button 
+                onClick={() => setActiveTab('basic')}
+                variant="outline"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
+              <Button 
+                onClick={() => onSave(workflow)}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Save Workflow
+              </Button>
+            </div>
           </TabsContent>
-
-
         </Tabs>
       </div>
     </div>
