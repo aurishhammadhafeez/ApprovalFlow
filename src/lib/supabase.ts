@@ -47,4 +47,25 @@ export interface WorkflowStep {
   order_index: number
   required: boolean
   created_at?: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  description?: string
+  permissions: Record<string, any>
+  created_at?: string
+}
+
+export interface UserRole {
+  id: string
+  user_id: string
+  role_id: string
+  organization_id: string
+  assigned_by?: string
+  created_at?: string
+}
+
+export interface UserWithRoles extends User {
+  roles?: Role[]
 } 

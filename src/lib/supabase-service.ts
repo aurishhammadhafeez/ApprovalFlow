@@ -312,4 +312,153 @@ export class SupabaseService {
       return { data: null, error: error as any }
     }
   }
+
+  // Check if email is already in use (across all organizations)
+  static async isEmailInUse(email: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, organization_id')
+      .eq('email', email)
+      .maybeSingle()
+    
+    if (error) {
+      console.error('Error checking email:', error)
+      return { isInUse: false, error }
+    }
+    
+    return { isInUse: !!data, organizationId: data?.organization_id, error: null }
+  }
+
+  // Add user to organization (only admins can do this)
+  static async addUserToOrganization(userData: { email: string; name: string; role: string }, organizationId: string) {
+    try {
+      // Check if current user is admin
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { data: null, error: 'Authentication required' }
+      }
+
+      // Check if email is already in use
+      const { isInUse, organizationId: existingOrgId } = await this.isEmailInUse(userData.email)
+      if (isInUse) {
+        if (existingOrgId === organizationId) {
+          return { data: null, error: 'User is already in this organization' }
+        } else {
+          return { data: null, error: 'Email is already in use by another organization' }
+        }
+      }
+
+      // Get the role ID for the specified role name
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('name', userData.role)
+        .single()
+
+      if (roleError || !roleData) {
+        return { data: null, error: 'Invalid role specified' }
+      }
+
+      // Create the user
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert([{
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          organization_id: organizationId
+        }])
+        .select()
+        .single()
+
+      if (userError) {
+        console.error('Error creating user:', userError)
+        return { data: null, error: userError.message }
+      }
+
+      // Assign the role to the user
+      const { error: roleAssignmentError } = await supabase
+        .from('user_roles')
+        .insert([{
+          user_id: newUser.id,
+          role_id: roleData.id,
+          organization_id: organizationId,
+          assigned_by: currentUser.id
+        }])
+
+      if (roleAssignmentError) {
+        console.error('Error assigning role:', roleAssignmentError)
+        // If role assignment fails, delete the user to maintain consistency
+        await this.deleteUser(newUser.id)
+        return { data: null, error: 'Failed to assign role to user' }
+      }
+
+      return { data: newUser, error: null }
+    } catch (error) {
+      console.error('Error adding user to organization:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Get users with their roles for an organization
+  static async getUsersWithRoles(organizationId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_roles (
+            role_id,
+            roles (
+              name,
+              description,
+              permissions
+            )
+          )
+        `)
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching users with roles:', error)
+        return { data: null, error }
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      console.error('Error fetching users with roles:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Delete user (only admins can do this)
+  static async deleteUser(userId: string) {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) {
+        return { error: 'Authentication required' }
+      }
+
+      // Check if current user is admin
+      const { data: userData } = await this.getCurrentUserWithOrganization()
+      if (!userData?.user || userData.user.role !== 'admin') {
+        return { error: 'Insufficient permissions' }
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error deleting user:', error)
+        return { error: error.message }
+      }
+
+      return { error: null }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      return { error: error as any }
+    }
+  }
 } 

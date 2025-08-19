@@ -1,27 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
-  Users, Plus, Mail, Shield, Edit, Trash2, 
-  UserCheck, UserX, Search, Filter 
+  Plus, Trash2, Edit, Users, UserPlus, Shield, AlertCircle 
 } from 'lucide-react';
+import { SupabaseService } from '@/lib/supabase-service';
+import { toast } from '@/components/ui/sonner';
 
 interface UserManagementProps {
   orgData: any;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  organization_id: string;
+  created_at: string;
+  user_roles?: Array<{
+    roles: {
+      name: string;
+      description: string;
+      permissions: Record<string, any>;
+    };
+  }>;
+}
+
 const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
-  const [users, setUsers] = useState([
-    { id: 1, name: 'John Doe', email: 'john@company.com', role: 'Admin', department: 'IT', status: 'active' },
-    { id: 2, name: 'Jane Smith', email: 'jane@company.com', role: 'Manager', department: 'HR', status: 'active' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@company.com', role: 'User', department: 'Finance', status: 'inactive' },
-    { id: 4, name: 'Sarah Wilson', email: 'sarah@company.com', role: 'Manager', department: 'Marketing', status: 'active' }
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [canManageUsers, setCanManageUsers] = useState(false);
 
   const [newUser, setNewUser] = useState({
     name: '',
@@ -30,40 +46,127 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
     department: ''
   });
 
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const roles = [
+    { name: 'admin', description: 'Full access to all features and user management' },
+    { name: 'manager', description: 'Can manage workflows and approve requests' },
+    { name: 'user', description: 'Can create workflows and submit approvals' },
+    { name: 'viewer', description: 'Read-only access to workflows' }
+  ];
 
-  const roles = ['Admin', 'Manager', 'User', 'Viewer'];
   const departments = ['HR', 'Finance', 'Marketing', 'IT', 'Operations', 'Sales', 'Legal'];
 
-  const handleAddUser = () => {
-    const user = {
-      id: users.length + 1,
-      ...newUser,
-      status: 'active'
-    };
-    setUsers([...users, user]);
-    setNewUser({ name: '', email: '', role: '', department: '' });
-    setIsAddUserOpen(false);
+  // Fetch users and check current user permissions
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user to check permissions
+      const { data: userData } = await SupabaseService.getCurrentUserWithOrganization();
+      if (!userData?.user) {
+        toast.error('Authentication required');
+        return;
+      }
+      
+      setCurrentUser(userData.user);
+      
+      // Check if current user is admin
+      const isAdmin = userData.user.role === 'admin';
+      setCanManageUsers(isAdmin);
+      
+      if (!isAdmin) {
+        toast.error('Insufficient permissions to manage users');
+        return;
+      }
+
+      // Fetch users with roles
+      const { data, error } = await SupabaseService.getUsersWithRoles(orgData.id);
+      
+      if (error) {
+        console.error('Error fetching users:', error);
+        toast.error('Failed to fetch users');
+        return;
+      }
+
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const toggleUserStatus = (userId: number) => {
-    setUsers(users.map(user => 
-      user.id === userId 
-        ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' }
-        : user
-    ));
+  useEffect(() => {
+    fetchUsers();
+  }, [orgData.id]);
+
+  const handleAddUser = async () => {
+    try {
+      // Validate input
+      if (!newUser.name.trim() || !newUser.email.trim() || !newUser.role) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Add user to organization
+      const { data, error } = await SupabaseService.addUserToOrganization(
+        {
+          email: newUser.email.trim(),
+          name: newUser.name.trim(),
+          role: newUser.role
+        },
+        orgData.id
+      );
+
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
+      toast.success('User added successfully!');
+      
+      // Reset form and close dialog
+      setNewUser({ name: '', email: '', role: '', department: '' });
+      setIsAddUserOpen(false);
+      
+      // Refresh users list
+      fetchUsers();
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error('Failed to add user');
+    }
   };
 
-  const deleteUser = (userId: number) => {
-    setUsers(users.filter(user => user.id !== userId));
+  const deleteUser = async (userId: string) => {
+    try {
+      if (!canManageUsers) {
+        toast.error('Insufficient permissions');
+        return;
+      }
+
+      const { error } = await SupabaseService.deleteUser(userId);
+      
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
+      toast.success('User deleted successfully!');
+      
+      // Refresh users list
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+    }
   };
 
   const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'Admin': return 'bg-red-100 text-red-800';
-      case 'Manager': return 'bg-blue-100 text-blue-800';
-      case 'User': return 'bg-green-100 text-green-800';
-      case 'Viewer': return 'bg-gray-100 text-gray-800';
+    switch (role.toLowerCase()) {
+      case 'admin': return 'bg-red-100 text-red-800';
+      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'user': return 'bg-green-100 text-green-800';
+      case 'viewer': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -73,6 +176,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
       ? 'bg-green-100 text-green-800' 
       : 'bg-red-100 text-red-800';
   };
+
+  if (!canManageUsers) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
+          <p className="text-gray-600">You need admin permissions to manage users.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,7 +200,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
         <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-              <Plus className="mr-2 h-4 w-4" />
+              <UserPlus className="mr-2 h-4 w-4" />
               Add User
             </Button>
           </DialogTrigger>
@@ -93,12 +208,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
-                Invite a new user to your organization
+                Invite a new user to your organization. Each email can only be in one organization.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="userName">Full Name</Label>
+                <Label htmlFor="userName">Full Name *</Label>
                 <Input
                   id="userName"
                   placeholder="Enter full name"
@@ -107,7 +222,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="userEmail">Email Address</Label>
+                <Label htmlFor="userEmail">Email Address *</Label>
                 <Input
                   id="userEmail"
                   type="email"
@@ -115,16 +230,24 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                   value={newUser.email}
                   onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
                 />
+                <p className="text-xs text-gray-500">
+                  This email must not be used by any other organization
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="userRole">Role</Label>
+                <Label htmlFor="userRole">Role *</Label>
                 <Select onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((role) => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                      <SelectItem key={role.name} value={role.name}>
+                        <div>
+                          <div className="font-medium">{role.name.charAt(0).toUpperCase() + role.name.slice(1)}</div>
+                          <div className="text-xs text-gray-500">{role.description}</div>
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -133,7 +256,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                 <Label htmlFor="userDepartment">Department</Label>
                 <Select onValueChange={(value) => setNewUser(prev => ({ ...prev, department: value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
+                    <SelectValue placeholder="Select department (optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((dept) => (
@@ -142,8 +265,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleAddUser} className="w-full">
-                Send Invitation
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddUser} className="bg-gradient-to-r from-blue-600 to-purple-600">
+                Add User
               </Button>
             </div>
           </DialogContent>
@@ -151,124 +279,124 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-blue-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold">{users.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+              </div>
+              <div className="p-3 rounded-full bg-blue-50">
+                <Users className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <UserCheck className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-bold">{users.filter(u => u.status === 'active').length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-red-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Admins</p>
-                <p className="text-2xl font-bold">{users.filter(u => u.role === 'Admin').length}</p>
+                <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'admin').length}</p>
+              </div>
+              <div className="p-3 rounded-full bg-red-50">
+                <Shield className="h-6 w-6 text-red-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Mail className="h-5 w-5 text-orange-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending</p>
-                <p className="text-2xl font-bold">2</p>
+                <p className="text-sm font-medium text-gray-600">Managers</p>
+                <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'manager').length}</p>
+              </div>
+              <div className="p-3 rounded-full bg-blue-50">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Regular Users</p>
+                <p className="text-2xl font-bold text-gray-900">{users.filter(u => ['user', 'viewer'].includes(u.role)).length}</p>
+              </div>
+              <div className="p-3 rounded-full bg-green-50">
+                <Users className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* User List */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Users</CardTitle>
-              <CardDescription>Manage user access and permissions</CardDescription>
+      {/* Users List */}
+      {loading ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading users...</p>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input placeholder="Search users..." className="pl-10 w-64" />
-              </div>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
+          </CardContent>
+        </Card>
+      ) : users.length === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No users yet</h3>
+              <p className="text-gray-600 mb-4">Start building your team by adding the first user</p>
+              <Button onClick={() => setIsAddUserOpen(true)} className="bg-gradient-to-r from-blue-600 to-purple-600">
+                Add First User
               </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {users.map((user) => (
-              <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-                    {user.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <h4 className="font-medium">{user.name}</h4>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Organization Users</CardTitle>
+            <CardDescription>Manage user access and permissions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {users.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="font-medium">{user.name}</h4>
+                      <Badge className={getRoleColor(user.role)}>
+                        {user.role}
+                      </Badge>
+                    </div>
                     <p className="text-sm text-gray-600">{user.email}</p>
+                    <p className="text-xs text-gray-500">
+                      Joined {new Date(user.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <Badge className={getRoleColor(user.role)}>
-                    {user.role}
-                  </Badge>
-                  <Badge variant="outline">
-                    {user.department}
-                  </Badge>
-                  <Badge className={getStatusColor(user.status)}>
-                    {user.status}
-                  </Badge>
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
                     <Button 
                       variant="ghost" 
-                      size="sm"
-                      onClick={() => toggleUserStatus(user.id)}
-                    >
-                      {user.status === 'active' ? 
-                        <UserX className="h-4 w-4 text-red-500" /> : 
-                        <UserCheck className="h-4 w-4 text-green-500" />
-                      }
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
+                      size="sm" 
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => deleteUser(user.id)}
+                      disabled={user.id === currentUser?.id}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
                     </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
