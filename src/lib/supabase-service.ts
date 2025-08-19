@@ -60,6 +60,50 @@ export class SupabaseService {
     return { data, error }
   }
 
+  static async createWorkflowSteps(steps: Omit<WorkflowStep, 'id' | 'created_at'>[]) {
+    const { data, error } = await supabase
+      .from('workflow_steps')
+      .insert(steps)
+      .select()
+    return { data, error }
+  }
+
+  static async createWorkflowWithSteps(workflowData: Omit<Workflow, 'id' | 'created_at'>, steps: Array<{ name: string, approver: string, required: boolean }>) {
+    try {
+      // First create the workflow
+      const { data: workflow, error: workflowError } = await this.createWorkflow(workflowData)
+      if (workflowError) {
+        return { data: null, error: workflowError }
+      }
+
+      // Then create the workflow steps
+      const workflowSteps = steps.map((step, index) => ({
+        workflow_id: workflow.id,
+        name: step.name,
+        approver_email: step.approver,
+        order_index: index + 1,
+        required: step.required
+      }))
+
+      const { data: stepsData, error: stepsError } = await this.createWorkflowSteps(workflowSteps)
+      if (stepsError) {
+        // If steps creation fails, we should delete the workflow to maintain consistency
+        await this.deleteWorkflow(workflow.id)
+        return { data: null, error: stepsError }
+      }
+
+      return { 
+        data: { 
+          workflow, 
+          steps: stepsData 
+        }, 
+        error: null 
+      }
+    } catch (error) {
+      return { data: null, error: error as any }
+    }
+  }
+
   static async getWorkflows(organizationId: string) {
     const { data, error } = await supabase
       .from('workflows')

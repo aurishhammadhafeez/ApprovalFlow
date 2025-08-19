@@ -10,6 +10,8 @@ import {
   ArrowLeft, Wand2, FileText, Users, 
   Plus, Trash2, ArrowRight, CheckCircle 
 } from 'lucide-react';
+import { SupabaseService } from '@/lib/supabase-service';
+import { toast } from '@/components/ui/sonner';
 
 interface WorkflowBuilderProps {
   onBack: () => void;
@@ -99,12 +101,91 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
     }));
   };
 
+  const saveWorkflow = async () => {
+    try {
+      // Get current user and organization
+      const currentUser = await SupabaseService.getCurrentUser();
+      if (!currentUser) {
+        toast.error('Please sign in to save workflows');
+        return;
+      }
+
+      const { data: userData } = await SupabaseService.getCurrentUserWithOrganization();
+      if (!userData?.organization) {
+        toast.error('Please complete organization setup first');
+        return;
+      }
+
+      // Validate required fields
+      if (!workflow.name.trim()) {
+        toast.error('Workflow name is required');
+        return;
+      }
+
+      if (!workflow.department) {
+        toast.error('Please select a department');
+        return;
+      }
+
+      if (!workflow.type) {
+        toast.error('Please select a workflow type');
+        return;
+      }
+
+      if (workflow.steps.length === 0) {
+        toast.error('At least one approval step is required');
+        return;
+      }
+
+      // Check if all steps have names
+      const hasEmptyStepNames = workflow.steps.some(step => !step.name.trim());
+      if (hasEmptyStepNames) {
+        toast.error('All approval steps must have names');
+        return;
+      }
+
+      // Prepare workflow data
+      const workflowData = {
+        name: workflow.name.trim(),
+        department: workflow.department,
+        type: workflow.type,
+        description: workflow.description.trim(),
+        organization_id: userData.organization.id,
+        created_by: currentUser.id
+      };
+
+      // Prepare steps data
+      const stepsData = workflow.steps.map(step => ({
+        name: step.name.trim(),
+        approver: step.approver.trim(),
+        required: step.required
+      }));
+
+      // Save to database
+      const { data, error } = await SupabaseService.createWorkflowWithSteps(workflowData, stepsData);
+      
+      if (error) {
+        console.error('Error saving workflow:', error);
+        toast.error('Failed to save workflow. Please try again.');
+        return;
+      }
+
+      toast.success('Workflow saved successfully!');
+      
+      // Call the onSave callback with the saved data
+      onSave(data);
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+    }
+  };
+
   const useTemplate = (template: any) => {
     setWorkflow(prev => ({ ...prev, steps: template.steps }));
   };
 
   const handleSave = () => {
-    onSave(workflow);
+    saveWorkflow();
   };
 
   return (
@@ -282,7 +363,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
                 Previous
               </Button>
               <Button 
-                onClick={() => onSave(workflow)}
+                onClick={handleSave}
                 className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />

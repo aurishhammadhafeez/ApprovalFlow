@@ -37,4 +37,14 @@ export interface Workflow {
   organization_id?: string
   created_by?: string
   created_at?: string
+}
+
+export interface WorkflowStep {
+  id: string
+  workflow_id: string
+  name: string
+  approver_email?: string
+  order_index: number
+  required: boolean
+  created_at?: string
 } 
