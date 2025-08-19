@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  ArrowLeft, Wand2, FileText, Users, Settings, 
+  ArrowLeft, Wand2, FileText, Users, 
   Plus, Trash2, ArrowRight, CheckCircle 
 } from 'lucide-react';
 
@@ -132,10 +132,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
 
       <div className="p-6 max-w-6xl mx-auto">
         <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="steps">Approval Steps</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic" className="space-y-6">
@@ -264,21 +263,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onBack, onSave }) => 
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Workflow Settings</CardTitle>
-                <CardDescription>Configure advanced workflow options</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Advanced Settings</h3>
-                  <p className="text-gray-600">SLA timers, escalation rules, and notifications will be available here</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+
         </Tabs>
       </div>
     </div>
