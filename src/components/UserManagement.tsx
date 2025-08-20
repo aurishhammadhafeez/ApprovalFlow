@@ -500,7 +500,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Admins</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'admin').length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => (u.user_roles?.[0]?.roles?.name || u.role) === 'admin').length}</p>
                   </div>
                   <div className="p-3 rounded-full bg-red-50">
                     <Shield className="h-6 w-6 text-red-600" />
@@ -513,7 +513,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Managers</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'manager').length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => (u.user_roles?.[0]?.roles?.name || u.role) === 'manager').length}</p>
                   </div>
                   <div className="p-3 rounded-full bg-blue-50">
                     <Users className="h-6 w-6 text-blue-600" />
@@ -526,7 +526,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Regular Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => ['user', 'viewer'].includes(u.role)).length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{users.filter(u => ['user', 'viewer'].includes(u.user_roles?.[0]?.roles?.name || u.role || '')).length}</p>
                   </div>
                   <div className="p-3 rounded-full bg-green-50">
                     <Users className="h-6 w-6 text-green-600" />
@@ -572,8 +572,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
                           <h4 className="font-medium">{user.name}</h4>
-                          <Badge className={getRoleColor(user.role)}>
-                            {user.role}
+                          <Badge className={getRoleColor(user.user_roles?.[0]?.roles?.name || user.role || 'user')}>
+                            {user.user_roles?.[0]?.roles?.name || user.role || 'No role'}
                           </Badge>
                         </div>
                         <p className="text-sm text-gray-600">{user.email}</p>
