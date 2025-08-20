@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAppContext } from '@/contexts/AppContext'
+import { SupabaseService } from '@/lib/supabase-service'
 import WorkflowBuilder from '@/components/WorkflowBuilder'
 
 export default function WorkflowPage() {
