@@ -291,21 +291,28 @@ export class SupabaseService {
 
       const { data: userData, error } = await supabase
         .from('users')
-        .select(`
-          organization_id,
-          user_roles!inner (
-            roles!inner (
-              name
-            )
-          )
-        `)
+        .select('organization_id')
         .eq('id', currentUser.id)
         .single()
 
-      if (error || !userData) return false
+      if (error || !userData || !userData.organization_id) return false
 
-      const isAdmin = userData.user_roles?.some(ur => (ur.roles as any)?.name === 'admin')
-      return isAdmin
+      // Check if user has admin role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select(`
+          roles (
+            name
+          )
+        `)
+        .eq('user_id', currentUser.id)
+        .eq('organization_id', userData.organization_id)
+        .eq('roles.name', 'admin')
+        .maybeSingle()
+
+      if (roleError) return false
+
+      return !!roleData
     } catch (error) {
       console.error('Error checking admin status:', error)
       return false
@@ -318,31 +325,39 @@ export class SupabaseService {
       const currentUser = await this.getCurrentUser()
       if (!currentUser) return { data: null, error: 'No authenticated user' }
 
-      // Get user data with role information
+      // Get user data first
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_roles!inner (
-            role_id,
-            roles!inner (
-              name,
-              description,
-              permissions
-            )
-          )
-        `)
+        .select('*')
         .eq('id', currentUser.id)
         .single()
 
       if (userError || !userData) return { data: null, error: userError || 'User not found' }
 
+      // Get user role separately to avoid relationship conflicts
+      let userRole = 'user'
+      if (userData.organization_id) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select(`
+            roles (
+              name
+            )
+          `)
+          .eq('user_id', currentUser.id)
+          .eq('organization_id', userData.organization_id)
+          .maybeSingle()
+        
+        if (!roleError && roleData?.roles) {
+          userRole = (roleData.roles as any).name
+        }
+      }
+
       if (userData.organization_id) {
         const { data: orgData, error: orgError } = await this.getOrganization(userData.organization_id)
         if (orgError) return { data: null, error: orgError }
 
-        // Extract role information
-        const userRole = userData.user_roles?.[0]?.roles?.name || 'user'
+        // Create user with role information
         const userWithRole = {
           ...userData,
           role: userRole
