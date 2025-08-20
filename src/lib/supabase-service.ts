@@ -467,28 +467,51 @@ export class SupabaseService {
   // Get users with their roles for an organization
   static async getUsersWithRoles(organizationId: string) {
     try {
-      const { data, error } = await supabase
+      // First get all users in the organization
+      const { data: users, error: usersError } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_roles (
-            role_id,
-            roles (
-              name,
-              description,
-              permissions
-            )
-          )
-        `)
+        .select('*')
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching users with roles:', error)
-        return { data: null, error }
+      if (usersError) {
+        console.error('Error fetching users:', usersError)
+        return { data: null, error: usersError }
       }
 
-      return { data, error: null }
+      if (!users || users.length === 0) {
+        return { data: [], error: null }
+      }
+
+      // Then get roles for each user
+      const usersWithRoles = await Promise.all(
+        users.map(async (user) => {
+          const { data: roleData, error: roleError } = await supabase
+            .from('user_roles')
+            .select(`
+              roles (
+                name,
+                description,
+                permissions
+              )
+            `)
+            .eq('user_id', user.id)
+            .eq('organization_id', organizationId)
+            .maybeSingle()
+
+          if (roleError) {
+            console.error('Error fetching role for user:', user.id, roleError)
+            return user
+          }
+
+          return {
+            ...user,
+            user_roles: roleData ? [roleData] : []
+          }
+        })
+      )
+
+      return { data: usersWithRoles, error: null }
     } catch (error) {
       console.error('Error fetching users with roles:', error)
       return { data: null, error: error as any }

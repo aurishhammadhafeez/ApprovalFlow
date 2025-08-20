@@ -119,6 +119,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
         return;
       }
 
+      console.log('Fetched users data:', data); // Debug log
       setUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
