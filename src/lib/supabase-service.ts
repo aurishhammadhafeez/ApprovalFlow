@@ -285,22 +285,74 @@ export class SupabaseService {
     }
   }
 
-  // Get current user with organization data
+  // Check if current user is admin in their organization
+  static async isCurrentUserAdmin() {
+    try {
+      const currentUser = await this.getCurrentUser()
+      if (!currentUser) return false
+
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select(`
+          organization_id,
+          user_roles!inner (
+            roles!inner (
+              name
+            )
+          )
+        `)
+        .eq('id', currentUser.id)
+        .single()
+
+      if (error || !userData) return false
+
+      const isAdmin = userData.user_roles?.some(ur => (ur.roles as any)?.name === 'admin')
+      return isAdmin
+    } catch (error) {
+      console.error('Error checking admin status:', error)
+      return false
+    }
+  }
+
+  // Get current user with organization data and role
   static async getCurrentUserWithOrganization() {
     try {
       const currentUser = await this.getCurrentUser()
       if (!currentUser) return { data: null, error: 'No authenticated user' }
 
-      const { data: userData, error: userError } = await this.getUserById(currentUser.id)
+      // Get user data with role information
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_roles!inner (
+            role_id,
+            roles!inner (
+              name,
+              description,
+              permissions
+            )
+          )
+        `)
+        .eq('id', currentUser.id)
+        .single()
+
       if (userError || !userData) return { data: null, error: userError || 'User not found' }
 
       if (userData.organization_id) {
         const { data: orgData, error: orgError } = await this.getOrganization(userData.organization_id)
         if (orgError) return { data: null, error: orgError }
 
+        // Extract role information
+        const userRole = userData.user_roles?.[0]?.roles?.name || 'user'
+        const userWithRole = {
+          ...userData,
+          role: userRole
+        }
+
         return {
           data: {
-            user: userData,
+            user: userWithRole,
             organization: orgData
           },
           error: null
@@ -469,6 +521,12 @@ export class SupabaseService {
       const currentUser = await this.getCurrentUser()
       if (!currentUser) {
         return { data: null, error: 'Authentication required' }
+      }
+
+      // Verify admin permissions
+      const isAdmin = await this.isCurrentUserAdmin()
+      if (!isAdmin) {
+        return { data: null, error: 'Insufficient permissions. Only admins can create invitations.' }
       }
 
       // Check if email is already in use
