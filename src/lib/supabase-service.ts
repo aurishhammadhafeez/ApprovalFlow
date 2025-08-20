@@ -1,4 +1,4 @@
-import { supabase, User, Organization, Workflow } from './supabase'
+import { supabase, User, Organization, Workflow, WorkflowStep } from './supabase'
 
 export class SupabaseService {
   // Authentication

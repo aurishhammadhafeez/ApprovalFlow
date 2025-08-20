@@ -5,10 +5,10 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 interface AppContextType {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
-  user: any;
-  setUser: (user: any) => void;
-  organization: any;
-  setOrganization: (org: any) => void;
+  user: any | null;
+  setUser: (user: any | null) => void;
+  organization: any | null;
+  setOrganization: (org: any | null) => void;
   workflows: any[];
   setWorkflows: (workflows: any[]) => void;
 }
@@ -28,16 +28,16 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState(null);
-  const [organization, setOrganization] = useState(null);
-  const [workflows, setWorkflows] = useState([]);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [user, setUser] = useState<any | null>(null);
+  const [organization, setOrganization] = useState<any | null>(null);
+  const [workflows, setWorkflows] = useState<any[]>([]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const value = {
+  const value: AppContextType = {
     sidebarOpen,
     toggleSidebar,
     user,
