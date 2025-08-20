@@ -18,7 +18,7 @@ import { SupabaseService } from '@/lib/supabase-service'
 
 export default function UsersPage() {
   const { user, loading } = useAuth()
-  const { organization } = useAppContext()
+  const { organization, setOrganization } = useAppContext()
   const router = useRouter()
   
   const [users, setUsers] = useState<any[]>([])
