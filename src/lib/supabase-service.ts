@@ -677,9 +677,9 @@ export class SupabaseService {
   }
 
   // Get invitations for an organization
-  static async getInvitations(organizationId: string) {
+  static async getInvitations(organizationId: string, status: 'all' | 'pending' | 'accepted' | 'expired' = 'pending') {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invitations')
         .select(`
           *,
@@ -695,11 +695,19 @@ export class SupabaseService {
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
+      // Filter by status if not 'all'
+      if (status !== 'all') {
+        query = query.eq('status', status)
+      }
+
+      const { data, error } = await query
+
       if (error) {
         console.error('Error fetching invitations:', error)
         return { data: null, error }
       }
 
+      console.log(`🔍 Fetched ${status} invitations:`, data);
       return { data, error: null }
     } catch (error) {
       console.error('Error fetching invitations:', error)
@@ -821,17 +829,27 @@ export class SupabaseService {
       }
 
       // Update invitation status
-      const { error: updateError } = await supabase
+      console.log('🔍 Updating invitation status to accepted for ID:', invitation.id);
+      const { data: updateData, error: updateError } = await supabase
         .from('invitations')
         .update({
           status: 'accepted',
           accepted_at: new Date().toISOString()
         })
         .eq('id', invitation.id)
+        .select()
 
       if (updateError) {
-        console.error('Error updating invitation:', updateError)
+        console.error('❌ Error updating invitation status:', updateError);
+        console.error('❌ Update error details:', {
+          invitationId: invitation.id,
+          error: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint
+        });
         // Don't fail the acceptance, but log the error
+      } else {
+        console.log('✅ Invitation status updated successfully:', updateData);
       }
 
       return { 

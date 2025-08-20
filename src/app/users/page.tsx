@@ -31,6 +31,7 @@ export default function UsersPage() {
     role: 'user'
   })
   const [inviting, setInviting] = useState(false)
+  const [showAllInvitations, setShowAllInvitations] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -99,15 +100,23 @@ export default function UsersPage() {
 
   const fetchInvitations = async () => {
     try {
+      console.log('🔍 Fetching invitations for org:', organization.id);
       setLoadingInvitations(true)
-      const { data, error } = await SupabaseService.getInvitations(organization.id)
+      const { data, error } = await SupabaseService.getInvitations(
+        organization.id, 
+        showAllInvitations ? 'all' : 'pending'
+      )
+      
       if (error) {
+        console.error('❌ Error fetching invitations:', error);
         toast.error('Failed to fetch invitations')
         return
       }
+      
+      console.log('✅ Fetched invitations:', data);
       setInvitations(data || [])
     } catch (error) {
-      console.error('Error fetching invitations:', error)
+      console.error('❌ Error in fetchInvitations:', error)
       toast.error('An unexpected error occurred')
     } finally {
       setLoadingInvitations(false)
@@ -320,8 +329,41 @@ export default function UsersPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Pending Invitations</CardTitle>
-              <CardDescription>Invitations that haven't been accepted yet</CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>
+                    {showAllInvitations ? 'All Invitations' : 'Pending Invitations'}
+                  </CardTitle>
+                  <CardDescription>
+                    {showAllInvitations 
+                      ? 'All invitations including accepted and expired ones' 
+                      : 'Invitations that haven\'t been accepted yet'
+                    }
+                  </CardDescription>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowAllInvitations(!showAllInvitations)
+                      // Fetch invitations after toggling
+                      setTimeout(() => fetchInvitations(), 100)
+                    }}
+                  >
+                    {showAllInvitations ? 'Show Pending' : 'Show All'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchInvitations}
+                    disabled={loadingInvitations}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loadingInvitations ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loadingInvitations ? (
@@ -346,6 +388,15 @@ export default function UsersPage() {
                           <p className="text-sm text-gray-600">{invitation.email}</p>
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline">{invitation.roles?.name || 'No role'}</Badge>
+                            <Badge 
+                              variant={invitation.status === 'pending' ? 'secondary' : invitation.status === 'accepted' ? 'default' : 'destructive'}
+                              className="flex items-center"
+                            >
+                              {invitation.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                              {invitation.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
+                              {invitation.status === 'expired' && <XCircle className="h-3 w-3 mr-1" />}
+                              {invitation.status}
+                            </Badge>
                             <Badge variant="secondary" className="flex items-center">
                               <Clock className="h-3 w-3 mr-1" />
                               {new Date(invitation.expires_at).toLocaleDateString()}
