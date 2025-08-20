@@ -56,6 +56,7 @@ interface Invitation {
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
+  console.log('🚀 UserManagement component STARTED'); // Debug log
   console.log('🔍 UserManagement component rendered with orgData:', orgData); // Debug log
   
   const [activeTab, setActiveTab] = useState('users');
@@ -66,6 +67,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
   const [isInviteUserOpen, setIsInviteUserOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [canManageUsers, setCanManageUsers] = useState(false);
+  
+  console.log('🔍 Component state - users:', users, 'loading:', loading); // Debug log
 
   const [newUser, setNewUser] = useState({
     name: '',
@@ -330,6 +333,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
     );
   }
 
+  console.log('🔍 About to return JSX'); // Debug log
+  
   return (
     <div className="space-y-6">
       {/* Header */}

@@ -50,15 +50,22 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     try {
+      console.log('🔍 fetchUsers called for org:', organization.id); // Debug log
       setLoadingUsers(true)
-      const { data, error } = await SupabaseService.getUsers(organization.id)
+      
+      // Use getUsersWithRoles instead of getUsers to get role information
+      const { data, error } = await SupabaseService.getUsersWithRoles(organization.id)
+      
       if (error) {
+        console.error('❌ Error fetching users:', error);
         toast.error('Failed to fetch users')
         return
       }
+      
+      console.log('✅ Fetched users with roles:', data); // Debug log
       setUsers(data || [])
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('❌ Error in fetchUsers:', error)
       toast.error('An unexpected error occurred')
     } finally {
       setLoadingUsers(false)
@@ -192,7 +199,9 @@ export default function UsersPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {users.map((user) => (
+                  {users.map((user) => {
+                    console.log('🔍 Rendering user:', user); // Debug log for each user
+                    return (
                     <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
@@ -206,13 +215,15 @@ export default function UsersPage() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <Badge variant="outline">{user.role || 'No role'}</Badge>
+                        <Badge variant="outline">
+                          {user.user_roles?.[0]?.roles?.name || user.role || 'No role'}
+                        </Badge>
                         <span className="text-sm text-gray-500">
                           Joined {new Date(user.created_at).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </CardContent>
