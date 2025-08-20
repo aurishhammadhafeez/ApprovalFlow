@@ -56,6 +56,8 @@ interface Invitation {
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
+  console.log('🔍 UserManagement component rendered with orgData:', orgData); // Debug log
+  
   const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState<User[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -90,41 +92,52 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
   // Fetch users and check current user permissions
   const fetchUsers = async () => {
     try {
+      console.log('🔍 fetchUsers called - Starting...'); // Debug log
       setLoading(true);
       
       // Get current user to check permissions
+      console.log('🔍 Getting current user...'); // Debug log
       const { data: userData } = await SupabaseService.getCurrentUserWithOrganization();
+      console.log('🔍 Current user data:', userData); // Debug log
+      
       if (!userData?.user) {
+        console.log('❌ No user data found'); // Debug log
         toast.error('Authentication required');
         return;
       }
       
       setCurrentUser(userData.user);
+      console.log('🔍 Current user set:', userData.user); // Debug log
       
       // Check if current user is admin
       const isAdmin = userData.user.role === 'admin';
+      console.log('🔍 Is admin check:', isAdmin, 'Role:', userData.user.role); // Debug log
       setCanManageUsers(isAdmin);
       
       if (!isAdmin) {
+        console.log('❌ User is not admin'); // Debug log
         toast.error('Insufficient permissions to manage users');
         return;
       }
 
       // Fetch users with roles
+      console.log('🔍 Fetching users with roles for org:', orgData.id); // Debug log
       const { data, error } = await SupabaseService.getUsersWithRoles(orgData.id);
       
       if (error) {
-        console.error('Error fetching users:', error);
+        console.error('❌ Error fetching users:', error);
         toast.error('Failed to fetch users');
         return;
       }
 
-      console.log('Fetched users data:', data); // Debug log
+      console.log('✅ Fetched users data:', data); // Debug log
+      console.log('✅ Users array length:', data?.length); // Debug log
       setUsers(data || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error in fetchUsers:', error);
       toast.error('An unexpected error occurred');
     } finally {
+      console.log('🔍 Setting loading to false'); // Debug log
       setLoading(false);
     }
   };
@@ -148,6 +161,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ orgData }) => {
   };
 
   useEffect(() => {
+    console.log('🔍 useEffect triggered with orgData.id:', orgData.id); // Debug log
     fetchUsers();
     fetchInvitations();
   }, [orgData.id]);
