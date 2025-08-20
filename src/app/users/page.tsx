@@ -37,9 +37,34 @@ export default function UsersPage() {
       router.push('/')
     }
     if (!loading && user && !organization) {
-      router.push('/setup')
+      // Try to fetch organization data instead of immediately redirecting
+      fetchOrganizationData()
     }
   }, [user, loading, organization, router])
+
+  const fetchOrganizationData = async () => {
+    try {
+      console.log('🔍 Fetching organization data for user...'); // Debug log
+      const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
+      
+      if (data && data.organization) {
+        // Set organization in context
+        setOrganization({
+          ...data.organization,
+          adminName: data.user.name,
+          adminEmail: data.user.email,
+          adminRole: data.user.role
+        })
+        console.log('✅ Organization data fetched and set'); // Debug log
+      } else {
+        console.log('❌ No organization found, redirecting to setup'); // Debug log
+        router.push('/setup')
+      }
+    } catch (error) {
+      console.error('❌ Error fetching organization:', error);
+      router.push('/setup')
+    }
+  }
 
   useEffect(() => {
     if (organization) {

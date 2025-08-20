@@ -24,7 +24,7 @@ type Workflow = {
 
 export default function WorkflowsPage() {
   const { user, loading } = useAuth()
-  const { organization } = useAppContext()
+  const { organization, setOrganization } = useAppContext()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loadingWorkflows, setLoadingWorkflows] = useState(false)
   const router = useRouter()
@@ -34,9 +34,34 @@ export default function WorkflowsPage() {
       router.push('/')
     }
     if (!loading && user && !organization) {
-      router.push('/setup')
+      // Try to fetch organization data instead of immediately redirecting
+      fetchOrganizationData()
     }
   }, [user, loading, organization, router])
+
+  const fetchOrganizationData = async () => {
+    try {
+      console.log('🔍 Fetching organization data for workflows page...'); // Debug log
+      const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
+      
+      if (data && data.organization) {
+        // Set organization in context
+        setOrganization({
+          ...data.organization,
+          adminName: data.user.name,
+          adminEmail: data.user.email,
+          adminRole: data.user.role
+        })
+        console.log('✅ Organization data fetched and set for workflows'); // Debug log
+      } else {
+        console.log('❌ No organization found, redirecting to setup'); // Debug log
+        router.push('/setup')
+      }
+    } catch (error) {
+      console.error('❌ Error fetching organization:', error);
+      router.push('/setup')
+    }
+  }
 
   const fetchWorkflows = async () => {
     try {
