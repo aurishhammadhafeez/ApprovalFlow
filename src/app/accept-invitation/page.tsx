@@ -23,6 +23,8 @@ function AcceptInvitationContent() {
     password: '',
     confirmPassword: ''
   })
+  const [invitationAccepted, setInvitationAccepted] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
     if (token) {
@@ -92,12 +94,10 @@ function AcceptInvitationContent() {
         return
       }
 
-      toast.success('Invitation accepted successfully! Welcome to ApprovalFlow!')
-      
-      // Redirect to dashboard after a short delay
-      setTimeout(() => {
-        router.push('/dashboard')
-      }, 2000)
+      // Show success message and email verification instructions
+      setInvitationAccepted(true)
+      setUserEmail(invitation.email)
+      toast.success('Account created successfully! Please check your email to verify your account.')
     } catch (error) {
       console.error('Error accepting invitation:', error)
       toast.error('An unexpected error occurred')
@@ -113,6 +113,91 @@ function AcceptInvitationContent() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading invitation...</p>
         </div>
+      </div>
+    )
+  }
+
+  if (invitationAccepted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <CardTitle className="text-green-600">Account Created Successfully!</CardTitle>
+            <CardDescription>
+              Welcome to ApprovalFlow! Your account has been created and you're now part of the organization.
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            {/* Email Verification Instructions */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-start space-x-3">
+                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-900 mb-2">Email Verification Required</h4>
+                  <p className="text-sm text-blue-700 mb-3">
+                    We've sent a verification email to <strong>{userEmail}</strong>. 
+                    Please check your inbox and click the verification link to activate your account.
+                  </p>
+                  <div className="bg-white p-3 rounded border border-blue-200">
+                    <p className="text-xs text-blue-600">
+                      <strong>Can't find the email?</strong> Check your spam folder or wait a few minutes for delivery.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Steps */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">What happens next?</h4>
+              <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                <li>Check your email for the verification link</li>
+                <li>Click the verification link to activate your account</li>
+                <li>Sign in with your email and password</li>
+                <li>Access your organization's dashboard</li>
+              </ol>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <Button 
+                onClick={() => router.push('/')} 
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+              >
+                Go to Sign In
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => window.open('https://mail.google.com', '_blank')}
+                className="w-full"
+              >
+                Open Gmail
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => window.open('https://outlook.live.com', '_blank')}
+                className="w-full"
+              >
+                Open Outlook
+              </Button>
+            </div>
+
+            <div className="text-center">
+              <p className="text-xs text-gray-500">
+                Already verified? <button 
+                  onClick={() => router.push('/')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Sign in here
+                </button>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -150,6 +235,19 @@ function AcceptInvitationContent() {
         </CardHeader>
         
         <CardContent className="space-y-4">
+          {/* What Happens Next Info */}
+          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <div className="flex items-start space-x-2">
+              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">i</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                <strong>What happens next:</strong> After accepting this invitation, you'll receive a verification email. 
+                Click the verification link to activate your account, then sign in to access your organization.
+              </p>
+            </div>
+          </div>
+
           {/* Invitation Details */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex items-center justify-between">
