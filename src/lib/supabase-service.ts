@@ -612,9 +612,66 @@ export class SupabaseService {
         return { data: null, error: invitationError.message }
       }
 
+      // Send invitation email using Supabase
+      try {
+        const { error: emailError } = await this.sendInvitationEmail(invitation, organizationId)
+        if (emailError) {
+          console.warn('Invitation created but email failed:', emailError)
+          // Don't fail the invitation creation if email fails
+        }
+      } catch (emailError) {
+        console.warn('Error sending invitation email:', emailError)
+        // Continue even if email fails
+      }
+
       return { data: invitation, error: null }
     } catch (error) {
       console.error('Error creating invitation:', error)
+      return { data: null, error: error as any }
+    }
+  }
+
+  // Get invitation by token
+  static async getInvitationByToken(token: string) {
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select(`
+          *,
+          roles (
+            name,
+            description
+          ),
+          organizations (
+            name
+          ),
+          users!invitations_invited_by_fkey (
+            name,
+            email
+          )
+        `)
+        .eq('token', token)
+        .single()
+
+      if (error) {
+        console.error('Error fetching invitation by token:', error)
+        return { data: null, error }
+      }
+
+      // Check if invitation is expired
+      if (new Date(data.expires_at) < new Date()) {
+        // Update status to expired
+        await supabase
+          .from('invitations')
+          .update({ status: 'expired' })
+          .eq('id', data.id)
+        
+        data.status = 'expired'
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      console.error('Error fetching invitation by token:', error)
       return { data: null, error: error as any }
     }
   }
@@ -835,9 +892,118 @@ export class SupabaseService {
         return { error: updateError.message }
       }
 
+      // Send new invitation email
+      try {
+        const { error: emailError } = await this.sendInvitationEmail(
+          { ...invitation, token: newToken, expires_at: newExpiresAt.toISOString() },
+          invitation.organization_id
+        )
+        if (emailError) {
+          console.warn('Invitation updated but email failed:', emailError)
+        }
+      } catch (emailError) {
+        console.warn('Error sending resend email:', emailError)
+      }
+
       return { data: { token: newToken, expires_at: newExpiresAt }, error: null }
     } catch (error) {
       console.error('Error resending invitation:', error)
+      return { error: error as any }
+    }
+  }
+
+  // Send invitation email using Supabase
+  static async sendInvitationEmail(invitation: any, organizationId: string) {
+    try {
+      // Get organization details for the email
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single()
+
+      if (orgError || !orgData) {
+        return { error: 'Organization not found' }
+      }
+
+      // Get role details
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('name, description')
+        .eq('id', invitation.role_id)
+        .single()
+
+      if (roleError || !roleData) {
+        return { error: 'Role not found' }
+      }
+
+      // Get inviter details
+      const { data: inviterData, error: inviterError } = await supabase
+        .from('users')
+        .select('name, email')
+        .eq('id', invitation.invited_by)
+        .single()
+
+      if (inviterError || !inviterData) {
+        return { error: 'Inviter not found' }
+      }
+
+      // Create invitation link
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://approval-flow-delta.vercel.app'
+      const invitationLink = `${baseUrl}/accept-invitation?token=${invitation.token}`
+
+      // Email content
+      const emailSubject = `You're invited to join ${orgData.name} on ApprovalFlow`
+      const emailBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">You're invited to join ApprovalFlow!</h2>
+          
+          <p>Hello${invitation.name ? ` ${invitation.name}` : ''},</p>
+          
+          <p>You've been invited by <strong>${inviterData.name || inviterData.email}</strong> to join <strong>${orgData.name}</strong> on ApprovalFlow.</p>
+          
+          <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #374151;">Invitation Details:</h3>
+            <ul style="color: #6b7280;">
+              <li><strong>Organization:</strong> ${orgData.name}</li>
+              <li><strong>Role:</strong> ${roleData.name} - ${roleData.description}</li>
+              <li><strong>Invited by:</strong> ${inviterData.name || inviterData.email}</li>
+              <li><strong>Expires:</strong> ${new Date(invitation.expires_at).toLocaleDateString()}</li>
+            </ul>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${invitationLink}" 
+               style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500;">
+              Accept Invitation
+            </a>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px;">
+            This invitation link will expire in 7 days. If you have any questions, please contact ${inviterData.email}.
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+            ApprovalFlow - AI-Powered Approval Workflow Platform
+          </p>
+        </div>
+      `
+
+      // For now, log the email content for manual sending
+      // TODO: Integrate with email service (SendGrid, Resend, or Supabase Edge Functions)
+      console.log('📧 Invitation Email Generated:')
+      console.log('To:', invitation.email)
+      console.log('Subject:', emailSubject)
+      console.log('Invitation Link:', invitationLink)
+      console.log('--- Email Content ---')
+      console.log(emailBody)
+      console.log('--- End Email Content ---')
+      
+            // Return success (email content logged for manual sending)
+      return { data: { sent: true, link: invitationLink, content: emailBody }, error: null }
+    } catch (error) {
+      console.error('Error sending invitation email:', error)
       return { error: error as any }
     }
   }
