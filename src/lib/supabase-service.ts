@@ -144,7 +144,6 @@ export class SupabaseService {
         id: currentUser.id, // Use auth UID as user ID
         email: userData.email,
         name: userData.name,
-        role: userData.role,
         organization_id: userData.organization_id
       }
 
@@ -165,8 +164,7 @@ export class SupabaseService {
           .from('users')
           .update({ 
             organization_id: userData.organization_id,
-            name: userData.name,
-            role: userData.role
+            name: userData.name
           })
           .eq('id', currentUser.id)
           .select()
@@ -417,7 +415,6 @@ export class SupabaseService {
         .insert([{
           email: userData.email,
           name: userData.name,
-          role: userData.role,
           organization_id: organizationId
         }])
         .select()
@@ -492,9 +489,9 @@ export class SupabaseService {
       }
 
       // Check if current user is admin
-      const { data: userData } = await this.getCurrentUserWithOrganization()
-      if (!userData?.user || userData.user.role !== 'admin') {
-        return { error: 'Insufficient permissions' }
+      const isAdmin = await this.isCurrentUserAdmin()
+      if (!isAdmin) {
+        return { error: 'Insufficient permissions. Only admins can delete users.' }
       }
 
       const { error } = await supabase
@@ -624,9 +621,9 @@ export class SupabaseService {
       }
 
       // Check if current user is admin
-      const { data: userData } = await this.getCurrentUserWithOrganization()
-      if (!userData?.user || userData.user.role !== 'admin') {
-        return { error: 'Insufficient permissions' }
+      const isAdmin = await this.isCurrentUserAdmin()
+      if (!isAdmin) {
+        return { error: 'Insufficient permissions. Only admins can cancel invitations.' }
       }
 
       const { error } = await supabase
@@ -703,7 +700,6 @@ export class SupabaseService {
           id: signUpData.user.id,
           email: userData.email,
           name: userData.name,
-          role: invitation.roles.name,
           organization_id: invitation.organization_id
         }])
 
@@ -746,8 +742,7 @@ export class SupabaseService {
       return { 
         data: { 
           user: signUpData.user, 
-          organization: invitation.organizations,
-          role: invitation.roles.name
+          organization: invitation.organizations
         }, 
         error: null 
       }
@@ -766,9 +761,9 @@ export class SupabaseService {
       }
 
       // Check if current user is admin
-      const { data: userData } = await this.getCurrentUserWithOrganization()
-      if (!userData?.user || userData.user.role !== 'admin') {
-        return { error: 'Insufficient permissions' }
+      const isAdmin = await this.isCurrentUserAdmin()
+      if (!isAdmin) {
+        return { error: 'Insufficient permissions. Only admins can resend invitations.' }
       }
 
       // Get current invitation
