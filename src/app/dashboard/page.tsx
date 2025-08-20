@@ -8,7 +8,7 @@ import Dashboard from '@/components/Dashboard'
 import { SupabaseService } from '@/lib/supabase-service'
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const { organization, setOrganization } = useAppContext()
   const [checkingUser, setCheckingUser] = useState(false)
   const router = useRouter()
@@ -84,8 +84,17 @@ export default function DashboardPage() {
   }
 
   const handleLogout = async () => {
-    // Handle logout logic here
-    router.push('/')
+    try {
+      await signOut()
+      // Clear organization data
+      setOrganization(null)
+      // Redirect to home page
+      router.push('/')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Even if there's an error, redirect to home
+      router.push('/')
+    }
   }
 
   return (
