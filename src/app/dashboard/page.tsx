@@ -14,23 +14,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const checkUserOrganization = async () => {
-      if (user) {
+      if (user && !organization) {
         try {
-          const hasOrg = await SupabaseService.userHasOrganization()
+          const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
           
-          if (hasOrg) {
-            const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
-            
-            if (data && data.organization) {
-              setOrganization({
-                ...data.organization,
-                adminName: data.user.name,
-                adminEmail: data.user.email,
-                adminRole: data.user.role
-              })
-            } else {
-              router.push('/setup')
-            }
+          if (data && data.organization) {
+            setOrganization({
+              ...data.organization,
+              adminName: data.user.name,
+              adminEmail: data.user.email,
+              adminRole: data.user.role
+            })
           } else {
             router.push('/setup')
           }
@@ -44,7 +38,7 @@ export default function DashboardPage() {
     if (!loading) {
       checkUserOrganization()
     }
-  }, [user, loading, setOrganization, router])
+  }, [user, loading, organization, setOrganization, router])
 
   if (loading) {
     return (

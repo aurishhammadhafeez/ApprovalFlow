@@ -21,23 +21,21 @@ export default function HomePage() {
           // Import SupabaseService dynamically to avoid SSR issues
           const { SupabaseService } = await import('../lib/supabase-service')
           
-          const hasOrg = await SupabaseService.userHasOrganization()
+          // Single optimized call to get user and organization data
+          const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
           
-          if (hasOrg) {
-            const { data, error } = await SupabaseService.getCurrentUserWithOrganization()
-            
-            if (data && data.organization) {
-              setOrganization({
-                ...data.organization,
-                adminName: data.user.name,
-                adminEmail: data.user.email,
-                adminRole: data.user.role
-              })
-              router.push('/dashboard')
-            } else {
-              router.push('/setup')
-            }
+          if (data && data.organization) {
+            setOrganization({
+              ...data.organization,
+              adminName: data.user.name,
+              adminEmail: data.user.email,
+              adminRole: data.user.role
+            })
+            router.push('/dashboard')
+          } else if (data && !data.organization) {
+            router.push('/setup')
           } else {
+            console.error('Error fetching user data:', error)
             router.push('/setup')
           }
         } catch (error) {
@@ -52,6 +50,7 @@ export default function HomePage() {
     }
   }, [user, loading, setOrganization, router])
 
+  // Show landing page immediately while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
