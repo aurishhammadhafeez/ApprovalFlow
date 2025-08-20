@@ -75,15 +75,8 @@ export default function WorkflowsPage() {
     router.push('/workflow')
   }
 
-  if (loading || loadingWorkflows) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading workflows...</p>
-        </div>
-      </div>
-    )
+  if (loading) {
+    return null
   }
 
   if (!user || !organization) {
@@ -108,7 +101,12 @@ export default function WorkflowsPage() {
         </Button>
       </div>
 
-      {workflows.length === 0 ? (
+      {loadingWorkflows ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+          <span className="text-gray-600">Loading workflows...</span>
+        </div>
+      ) : workflows.length === 0 ? (
         <Card>
           <CardContent className="p-6">
             <div className="text-center py-12">
@@ -118,10 +116,10 @@ export default function WorkflowsPage() {
               <Button onClick={handleCreateWorkflow} className="bg-gradient-to-r from-blue-600 to-purple-600">
                 Create Workflow
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="space-y-4">
           {workflows.map((workflow) => (
             <Card key={workflow.id} className="hover:shadow-md transition-shadow">
