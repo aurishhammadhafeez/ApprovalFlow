@@ -1,46 +1,103 @@
-# Database Setup Guide
+# Database Setup Guide for ApprovalFlow
 
-## Step 1: Set Up Supabase Database Schema
+This guide will help you set up the database for ApprovalFlow using Supabase.
 
-1. **Go to your Supabase Dashboard**
-   - Visit: https://supabase.com/dashboard/project/vusxtpupkiwhnvynqgus
-   - Navigate to **SQL Editor** in the left sidebar
+## Prerequisites
 
-2. **Run the Database Schema**
-   - Copy the entire contents of `supabase-schema.sql`
-   - Paste it into the SQL Editor
-   - Click **Run** to execute all the SQL commands
+- Supabase account
+- Supabase CLI installed
+- Docker Desktop running (for local development)
 
-3. **Verify Tables Created**
-   - Go to **Table Editor** in the left sidebar
-   - You should see these tables:
-     - `organizations`
-     - `users`
-     - `workflows`
-     - `workflow_steps`
-     - `approvals`
+## Environment Variables
 
-## Step 2: Test Database Connection
+Create a `.env.local` file in your project root with the following variables:
 
-1. **Get your Supabase Anon Key**
-   - Go to **Settings** → **API**
-   - Copy the **anon public** key
+```bash
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://vusxtpupkiwhnvynqgus.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[your-actual-anon-key]
 
-2. **Update Environment Variables**
-   - In your Vercel dashboard, add/update:
-     ```
-     VITE_SUPABASE_URL=https://vusxtpupkiwhnvynqgus.supabase.co
-     VITE_SUPABASE_ANON_KEY=[your-actual-anon-key]
-     ```
+# Database password (for CLI operations)
+SUPABASE_DB_PASSWORD=[your-database-password]
+```
 
-3. **Test the Connection**
-   - Your app will automatically test the connection
-   - Check the browser console for any errors
+## Quick Setup
 
-## Step 3: Verify Setup
+Run the automated setup script:
 
-After running the schema, you should see:
-- ✅ All tables created successfully
-- ✅ Row Level Security enabled
-- ✅ Indexes created for performance
-- ✅ Triggers set up for updated_at timestamps 
+```bash
+./scripts/setup-env.sh
+```
+
+This will:
+1. Create the `.env.local` file
+2. Set up the correct environment variable names
+3. Provide instructions for getting your Supabase credentials
+
+## Manual Setup
+
+### 1. Get Supabase Credentials
+
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Go to Settings → API
+4. Copy the Project URL and anon key
+
+### 2. Set Environment Variables
+
+```bash
+# Copy the example file
+cp env.example .env.local
+
+# Edit the file and add your credentials
+nano .env.local
+```
+
+### 3. Initialize Supabase
+
+```bash
+# Link to your project
+supabase link --project-ref vusxtpupkiwhnvynqgus
+
+# Start local development (optional)
+supabase start
+
+# Apply database schema
+supabase db push
+```
+
+## Database Schema
+
+The complete schema is defined in `supabase-schema.sql` and includes:
+
+- Users and organizations
+- Workflows and approval steps
+- Roles and permissions
+- User invitations system
+- Row Level Security (RLS) policies
+
+## Verification
+
+After setup, verify everything is working:
+
+```bash
+# Check database status
+npm run db:status
+
+# View migrations
+supabase migration list
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts**: Make sure ports 54322, 54323, and 54324 are available
+2. **Docker not running**: Ensure Docker Desktop is started
+3. **Environment variables**: Double-check your `.env.local` file
+
+### Getting Help
+
+- Check the [Supabase documentation](https://supabase.com/docs)
+- Review the project's [README.md](README.md)
+- Create an issue in the GitHub repository 
